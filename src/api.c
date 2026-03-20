@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 /* ═══════════════════════════════════════════════════════════
    Definicion de helpers internos
@@ -64,7 +66,7 @@ static int json_int(const char *json, const char *key, int *out)
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Metodo POST para el /api/login
+   POST /api/login
 ═══════════════════════════════════════════════════════════ */
 enum MHD_Result api_login(struct MHD_Connection *conn,
                            const char *body, size_t len)
@@ -78,15 +80,42 @@ enum MHD_Result api_login(struct MHD_Connection *conn,
     json_str(body, "username", username, sizeof(username));
     json_str(body, "password", password, sizeof(password));
 
+    /* ── Protección fuerza bruta: obtener IP del cliente ── */
+    const union MHD_ConnectionInfo *ci =
+        MHD_get_connection_info(conn, MHD_CONNECTION_INFO_CLIENT_ADDRESS);
+    char client_ip[46] = "unknown";
+    if (ci && ci->client_addr) {
+        struct sockaddr *sa = (struct sockaddr *)ci->client_addr;
+        if (sa->sa_family == AF_INET) {
+            struct sockaddr_in *s4 = (struct sockaddr_in *)sa;
+            unsigned char *b = (unsigned char *)&s4->sin_addr;
+            snprintf(client_ip, sizeof(client_ip),
+                     "%d.%d.%d.%d", b[0], b[1], b[2], b[3]);
+        }
+    }
+
+    if (!auth_ip_allowed(client_ip))
+        return send_json(conn, 429,
+                         "{\"error\":\"Demasiados intentos. Intente mas tarde.\"}");
+
     if (!auth_validate(username, password)) {
-        printf("[api] login FALLIDO para '%s'\n", username);
+        printf("[api] login FALLIDO para '%s' desde %s\n", username, client_ip);
+        auth_ip_failed(client_ip);
         return send_json(conn, MHD_HTTP_UNAUTHORIZED,
                          "{\"error\":\"Credenciales invalidas\"}");
     }
 
-    const char *token = auth_create_session(username);
+    /* ── Crear sesión ── */
+    char token[SESSION_TOKEN_LEN + 1];
+    AuthResult res = auth_create_session(username, token);
 
-    char cookie[128];
+    if (res == AUTH_ERR_FULL)
+        return send_json(conn, 503,
+                         "{\"error\":\"Servidor lleno. Maximo de usuarios activos alcanzado.\"}");
+
+    auth_ip_success(client_ip);
+
+    char cookie[160];
     snprintf(cookie, sizeof(cookie),
              "session=%s; HttpOnly; Path=/; Max-Age=%d",
              token, SESSION_TTL_SECS);
@@ -107,7 +136,7 @@ enum MHD_Result api_login(struct MHD_Connection *conn,
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Metodo POST para /api/logout
+   POST /api/logout
 ═══════════════════════════════════════════════════════════ */
 enum MHD_Result api_logout(struct MHD_Connection *conn)
 {
