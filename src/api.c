@@ -162,40 +162,40 @@ enum MHD_Result api_logout(struct MHD_Connection *conn)
 enum MHD_Result api_status(struct MHD_Connection *conn)
 {
     RobotState *rs = robot_state_get();
-    if (!rs) return send_json(conn, 500, "{\"error\":\"Estado Invalido\"}");
+    if (!rs) return send_json(conn, 500, "{\"error\":\"State unavailable\"}");
 
     pthread_mutex_lock(&rs->lock);
 
     char buf[1024];
     snprintf(buf, sizeof(buf),
         "{"
-          "\"modo\":\"%s\","
+          "\"mode\":\"%s\","
           "\"uptime\":%llu,"
-          "\"sensores\":{"
-            "\"frontal\":%.1f,"
-            "\"trasero\":%.1f,"
-            "\"izquierda\":%.1f,"
-            "\"derecha\":%.1f"
+          "\"sensors\":{"
+            "\"front\":%.1f,"
+            "\"back\":%.1f,"
+            "\"left\":%.1f,"
+            "\"right\":%.1f"
           "},"
           "\"leds\":{"
             "\"power\":%s,"
-            "\"autonomo\":%s,"
+            "\"autonomous\":%s,"
             "\"manual\":%s,"
-            "\"obstaculo\":%s"
+            "\"obstacle\":%s"
           "},"
           "\"audio\":{"
-            "\"estado\":%d,"
-            "\"cancion_actual_id\":%d,"
-            "\"posicion\":%.1f,"
-            "\"volumen\":%d"
+            "\"status\":%d,"
+            "\"current_track_id\":%d,"
+            "\"position\":%.1f,"
+            "\"volume\":%d"
           "},"
           "\"map\":{"
             "\"robot_x\":%d,"
             "\"robot_y\":%d,"
-            "\"robot_head\":%d"
+            "\"robot_heading\":%d"
           "}"
         "}",
-        rs->mode == MODE_AUTONOMOUS ? "autonomo" : "manual",
+        rs->mode == MODE_AUTONOMOUS ? "autonomous" : "manual",
         (unsigned long long)rs->uptime_secs,
         rs->sensors.front_cm, rs->sensors.back_cm,
         rs->sensors.left_cm,  rs->sensors.right_cm,
@@ -223,7 +223,7 @@ enum MHD_Result api_set_mode(struct MHD_Connection *conn,
     json_str(body, "mode", mode_str, sizeof(mode_str));
 
     RobotState *rs = robot_state_get();
-    if (!rs) return send_json(conn, 500, "{\"error\":\"Estado Invalido\"}");
+    if (!rs) return send_json(conn, 500, "{\"error\":\"State unavailable\"}");
 
     pthread_mutex_lock(&rs->lock);
 
@@ -232,19 +232,13 @@ enum MHD_Result api_set_mode(struct MHD_Connection *conn,
         rs->leds.autonomous = 0;
         rs->leds.manual     = 1;
         printf("[api] mode -> MANUAL\n");
-        /*
-         * TODO: notify autonomous FSM to stop
-         *   lib_set_mode(MODE_MANUAL);
-         */
+        // Funcionalidad de modo MANUAL
     } else {
         rs->mode            = MODE_AUTONOMOUS;
         rs->leds.autonomous = 1;
         rs->leds.manual     = 0;
-        printf("[api] mode -> AUTONOMO\n");
-        /*
-         * TODO: start autonomous FSM
-         *   lib_set_mode(MODE_AUTONOMOUS);
-         */
+        printf("[api] mode -> AUTONOMOUS\n");
+        // Funcionalidad de modo AUTONOMO
     }
 
     pthread_mutex_unlock(&rs->lock);
@@ -261,7 +255,7 @@ enum MHD_Result api_move(struct MHD_Connection *conn,
 {
     (void)len;
     RobotState *rs = robot_state_get();
-    if (!rs) return send_json(conn, 500, "{\"error\":\"Estado Invalido\"}");
+    if (!rs) return send_json(conn, 500, "{\"error\":\"State unavailable\"}");
 
     pthread_mutex_lock(&rs->lock);
     OperationMode current_mode = rs->mode;
@@ -269,16 +263,16 @@ enum MHD_Result api_move(struct MHD_Connection *conn,
 
     if (current_mode != MODE_MANUAL)
         return send_json(conn, MHD_HTTP_FORBIDDEN,
-                         "{\"error\":\"No se encuentra en modo manual\"}");
+                         "{\"error\":\"Not in manual mode\"}");
 
     char direction[32] = {0};
     int  speed         = 50;
-    json_str(body, "direccion", direction, sizeof(direction));
-    json_int(body, "velocidad",    &speed);
+    json_str(body, "direction", direction, sizeof(direction));
+    json_int(body, "speed",    &speed);
 
-    printf("[api] mover -> direccion='%s'  velocidad=%d%%\n", direction, speed);
+    printf("[api] move -> direction='%s'  speed=%d%%\n", direction, speed);
 
-    // Llamar funcionalidad con la Biblioteca
+     // Llamar funcionalidad con la Biblioteca de los motores
 
     return send_json(conn, MHD_HTTP_OK, "{\"ok\":true}");
 }
@@ -289,7 +283,7 @@ enum MHD_Result api_move(struct MHD_Connection *conn,
 enum MHD_Result api_audio_list(struct MHD_Connection *conn)
 {
     RobotState *rs = robot_state_get();
-    if (!rs) return send_json(conn, 500, "{\"error\":\"Estado Invalido\"}");
+    if (!rs) return send_json(conn, 500, "{\"error\":\"State unavailable\"}");
 
     pthread_mutex_lock(&rs->lock);
 
@@ -308,7 +302,7 @@ enum MHD_Result api_audio_list(struct MHD_Connection *conn)
     for (int i = 0; i < rs->audio.track_count; i++) {
         AudioTrack *t = &rs->audio.tracks[i];
         n += snprintf(buf + n, bufsz - (size_t)n,
-            "%s{\"id\":%d,\"nombre\":\"%s\",\"duracion\":\"%d:%02d\"}",
+            "%s{\"id\":%d,\"name\":\"%s\",\"duration\":\"%d:%02d\"}",
             i > 0 ? "," : "",
             t->id, t->filename,
             t->duration_secs / 60, t->duration_secs % 60);
@@ -336,7 +330,7 @@ enum MHD_Result api_audio_control(struct MHD_Connection *conn,
     json_int(body, "track_id", &track_id);
 
     RobotState *rs = robot_state_get();
-    if (!rs) return send_json(conn, 500, "{\"error\":\"Estado Invalido\"}");
+    if (!rs) return send_json(conn, 500, "{\"error\":\"State unavailable\"}");
 
     pthread_mutex_lock(&rs->lock);
 
@@ -345,7 +339,7 @@ enum MHD_Result api_audio_control(struct MHD_Connection *conn,
         rs->audio.status           = AUDIO_PLAYING;
         rs->audio.position_secs    = 0.0f;
         printf("[api] audio -> PLAY  track_id=%d\n", track_id);
-
+      
         // Funcionalidad de play en la biblioteca
 
     } else if (strcmp(action, "pause") == 0) {
@@ -354,11 +348,11 @@ enum MHD_Result api_audio_control(struct MHD_Connection *conn,
         
         // Funcionalidad de pause en la biblioteca
 
-    } else if (strcmp(action, "descripcion") == 0) {
+    } else if (strcmp(action, "resume") == 0) {
         rs->audio.status = AUDIO_PLAYING;
-        printf("[api] audio -> descripcion\n");
+        printf("[api] audio -> RESUME\n");
 
-        // Funcion de descripcion en la biblioteca
+        // Funcionalidad de resume en la biblioteca
 
     } else if (strcmp(action, "stop") == 0) {
         rs->audio.status           = AUDIO_STOPPED;
@@ -366,12 +360,12 @@ enum MHD_Result api_audio_control(struct MHD_Connection *conn,
         rs->audio.position_secs    = 0.0f;
         printf("[api] audio -> STOP\n");
 
-        // Funcion de stop en la biblioteca
+        // Funcionalidad de stop en la biblioteca
 
     } else {
         pthread_mutex_unlock(&rs->lock);
         return send_json(conn, MHD_HTTP_BAD_REQUEST,
-                         "{\"error\":\"Evento desconocido\"}");
+                         "{\"error\":\"Unknown action\"}");
     }
 
     pthread_mutex_unlock(&rs->lock);
@@ -392,13 +386,13 @@ enum MHD_Result api_audio_volume(struct MHD_Connection *conn,
     if (vol > 100) vol = 100;
 
     RobotState *rs = robot_state_get();
-    if (!rs) return send_json(conn, 500, "{\"error\":\"Estado Invalido\"}");
+    if (!rs) return send_json(conn, 500, "{\"error\":\"State unavailable\"}");
 
     pthread_mutex_lock(&rs->lock);
     rs->audio.volume = vol;
     pthread_mutex_unlock(&rs->lock);
 
-    printf("[api] audio -> VOLUMEN %d%%\n", vol);
+    printf("[api] audio -> VOLUME %d%%\n", vol);
 
     // Funcionalidad del volumen en la biblioteca
 

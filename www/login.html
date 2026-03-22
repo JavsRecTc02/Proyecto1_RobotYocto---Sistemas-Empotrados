@@ -220,7 +220,7 @@
         msg.className = 'msg ok';
         msg.textContent = 'Acceso concedido. Redirigiendo…';
     /* Redireccionar a la ventana del dashboard */
-        /* window.location.href = '/dashboard'; */
+        setTimeout(() => window.location.href = '/dashboard', 700);
       } else {
         const d = await res.json().catch(() => ({}));
         msg.className = 'msg error';
