@@ -9,6 +9,7 @@
 #include <fcntl.h>
 
 #include "robot_state.h"
+#include "lib_audio.h"
 #include "auth.h"
 #include "api.h"
 
@@ -23,6 +24,7 @@ typedef struct {
     size_t used;
 } UploadBuf;
 
+// Serving File
 static const char *mime_for(const char *path) {
     const char *d = strrchr(path, '.');
     if (!d)                       return "application/octet-stream";
@@ -196,7 +198,7 @@ static void request_done(void *cls, struct MHD_Connection *conn,
 }
 
 /* ══════════════════════════════════════════════════════════
-   Uptime thread
+   Hilo de actualizacion
 ══════════════════════════════════════════════════════════ */
 static volatile int g_running = 1;
 
@@ -232,6 +234,7 @@ int main(void) {
     printf("╚════════════════════════════════════╝\n\n");
 
     if (robot_state_init() < 0)  { fprintf(stderr, "[main] estado inicial fallo\n");  return 1; }
+    if (lib_audio_init(NULL) < 0)  { fprintf(stderr, "[main] audio init failed\n"); robot_state_destroy(); return 1; }
     if (auth_init()        < 0)  { fprintf(stderr, "[main] autorizacion inicial fallo\n");   robot_state_destroy(); return 1; }
 
     signal(SIGINT,  on_signal);
@@ -253,6 +256,7 @@ int main(void) {
     if (!g_daemon) {
         fprintf(stderr, "[main] fallo al iniciar el daemon en puerto %d\n", SERVER_PORT);
         auth_destroy();
+        lib_audio_destroy();
         robot_state_destroy();
         return 1;
     }
@@ -266,6 +270,7 @@ int main(void) {
     g_running = 0;
     pthread_join(tid, NULL);
     auth_destroy();
+    lib_audio_destroy();
     robot_state_destroy();
     printf("[server] Close.\n");
     return 0;

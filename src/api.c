@@ -1,6 +1,7 @@
 #include "api.h"
 #include "auth.h"
 #include "robot_state.h"
+#include "../lib/lib_audio.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -164,6 +165,14 @@ enum MHD_Result api_status(struct MHD_Connection *conn)
     RobotState *rs = robot_state_get();
     if (!rs) return send_json(conn, 500, "{\"error\":\"State unavailable\"}");
 
+
+    /* Leer audio desde lib_audio — fuente de verdad real.
+       rs->audio.volume no se actualiza en tiempo real. */
+    int   real_volume   = lib_audio_get_volume();
+    int   real_status   = (int)lib_audio_get_status();
+    int   real_track_id = lib_audio_get_current_id();
+    float real_position = lib_audio_get_position();
+
     pthread_mutex_lock(&rs->lock);
 
     char buf[1024];
@@ -203,8 +212,8 @@ enum MHD_Result api_status(struct MHD_Connection *conn)
         rs->leds.autonomous? "true" : "false",
         rs->leds.manual    ? "true" : "false",
         rs->leds.obstacle  ? "true" : "false",
-        rs->audio.status, rs->audio.current_track_id,
-        rs->audio.position_secs, rs->audio.volume,
+        real_status, real_track_id,
+        real_position, real_volume,
         rs->map.robot_x, rs->map.robot_y, rs->map.robot_heading
     );
 
@@ -280,27 +289,22 @@ enum MHD_Result api_move(struct MHD_Connection *conn,
 /* ═══════════════════════════════════════════════════════════
    Metodo GET para /api/audio/list
 ═══════════════════════════════════════════════════════════ */
+
 enum MHD_Result api_audio_list(struct MHD_Connection *conn)
 {
-    RobotState *rs = robot_state_get();
-    if (!rs) return send_json(conn, 500, "{\"error\":\"State unavailable\"}");
-
-    pthread_mutex_lock(&rs->lock);
-
-    // Llamar Funcionalidad de musica con la Biblioteca
-
-    if (rs->audio.track_count == 0) {
-        pthread_mutex_unlock(&rs->lock);
+    LibAudioTrack tracks[LIB_AUDIO_TRACKS_MAX];
+    int count = lib_audio_get_tracks(tracks, LIB_AUDIO_TRACKS_MAX);
+ 
+    if (count <= 0)
         return send_json(conn, MHD_HTTP_OK, "{\"tracks\":[]}");
-    }
-
-    size_t bufsz = (size_t)rs->audio.track_count * 160 + 32;
+ 
+    size_t bufsz = (size_t)count * (LIB_AUDIO_NAME_MAX + 64) + 32;
     char  *buf   = malloc(bufsz);
-    if (!buf) { pthread_mutex_unlock(&rs->lock); return MHD_NO; }
-
+    if (!buf) return MHD_NO;
+ 
     int n = snprintf(buf, bufsz, "{\"tracks\":[");
-    for (int i = 0; i < rs->audio.track_count; i++) {
-        AudioTrack *t = &rs->audio.tracks[i];
+    for (int i = 0; i < count; i++) {
+        LibAudioTrack *t = &tracks[i];
         n += snprintf(buf + n, bufsz - (size_t)n,
             "%s{\"id\":%d,\"name\":\"%s\",\"duration\":\"%d:%02d\"}",
             i > 0 ? "," : "",
@@ -308,9 +312,7 @@ enum MHD_Result api_audio_list(struct MHD_Connection *conn)
             t->duration_secs / 60, t->duration_secs % 60);
     }
     snprintf(buf + n, bufsz - (size_t)n, "]}");
-
-    pthread_mutex_unlock(&rs->lock);
-
+ 
     enum MHD_Result ret = send_json(conn, MHD_HTTP_OK, buf);
     free(buf);
     return ret;
@@ -320,6 +322,7 @@ enum MHD_Result api_audio_list(struct MHD_Connection *conn)
    Metodo POST para /api/audio/control
    Controlar musica, pausa, play, siguiente, etc
 ═══════════════════════════════════════════════════════════ */
+
 enum MHD_Result api_audio_control(struct MHD_Connection *conn,
                                    const char *body, size_t len)
 {
@@ -328,47 +331,34 @@ enum MHD_Result api_audio_control(struct MHD_Connection *conn,
     int  track_id   = -1;
     json_str(body, "action",   action,   sizeof(action));
     json_int(body, "track_id", &track_id);
-
-    RobotState *rs = robot_state_get();
-    if (!rs) return send_json(conn, 500, "{\"error\":\"State unavailable\"}");
-
-    pthread_mutex_lock(&rs->lock);
-
+ 
     if (strcmp(action, "play") == 0) {
-        rs->audio.current_track_id = track_id;
-        rs->audio.status           = AUDIO_PLAYING;
-        rs->audio.position_secs    = 0.0f;
+        // Funcionalidad de Play
+        if (lib_audio_play(track_id) < 0)
+            return send_json(conn, MHD_HTTP_BAD_REQUEST,
+                             "{\"error\":\"Pista no encontrada\"}");
         printf("[api] audio -> PLAY  track_id=%d\n", track_id);
-      
-        // Funcionalidad de play en la biblioteca
-
+ 
     } else if (strcmp(action, "pause") == 0) {
-        rs->audio.status = AUDIO_PAUSED;
+        // Funcionalidad de pause
+        lib_audio_pause();
         printf("[api] audio -> PAUSE\n");
-        
-        // Funcionalidad de pause en la biblioteca
-
+ 
     } else if (strcmp(action, "resume") == 0) {
-        rs->audio.status = AUDIO_PLAYING;
+        // Funcionalidad para continuar con el track
+        lib_audio_resume();
         printf("[api] audio -> RESUME\n");
-
-        // Funcionalidad de resume en la biblioteca
-
+ 
     } else if (strcmp(action, "stop") == 0) {
-        rs->audio.status           = AUDIO_STOPPED;
-        rs->audio.current_track_id = -1;
-        rs->audio.position_secs    = 0.0f;
+        // Funcionalidad para detener el audio
+        lib_audio_stop();
         printf("[api] audio -> STOP\n");
-
-        // Funcionalidad de stop en la biblioteca
-
+ 
     } else {
-        pthread_mutex_unlock(&rs->lock);
         return send_json(conn, MHD_HTTP_BAD_REQUEST,
-                         "{\"error\":\"Unknown action\"}");
+                         "{\"error\":\"Accion desconocida\"}");
     }
-
-    pthread_mutex_unlock(&rs->lock);
+ 
     return send_json(conn, MHD_HTTP_OK, "{\"ok\":true}");
 }
 
@@ -380,21 +370,19 @@ enum MHD_Result api_audio_volume(struct MHD_Connection *conn,
                                   const char *body, size_t len)
 {
     (void)len;
-    int vol = 70;
+    // Volumen por defecto
+    int vol = 50;
     json_int(body, "volume", &vol);
-    if (vol < 0)   vol = 0;
-    if (vol > 100) vol = 100;
-
-    RobotState *rs = robot_state_get();
-    if (!rs) return send_json(conn, 500, "{\"error\":\"State unavailable\"}");
-
-    pthread_mutex_lock(&rs->lock);
-    rs->audio.volume = vol;
-    pthread_mutex_unlock(&rs->lock);
-
+    if (vol < 0) {
+        vol = 0;
+    }
+    if (vol > 100) {
+        vol = 100;
+    }
+ 
+    // Utilizar la funcion de la lib de audio
+    lib_audio_set_volume(vol);
     printf("[api] audio -> VOLUME %d%%\n", vol);
-
-    // Funcionalidad del volumen en la biblioteca
-
+ 
     return send_json(conn, MHD_HTTP_OK, "{\"ok\":true}");
 }

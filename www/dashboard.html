@@ -435,10 +435,8 @@
           <span class="prog-t" id="prog-dur">0:00</span>
         </div>
         <div class="transport">
-          <button class="tbn" onclick="prevTrack()">⏮</button>
-          <button class="tbn" onclick="stopAudio()">⏹</button>
-          <button class="tbn play" id="play-btn" onclick="togglePlay()">▶</button>
-          <button class="tbn" onclick="nextTrack()">⏭</button>
+          <button class="tbn" onclick="stopAudio()" title="Detener">⏹</button>
+          <button class="tbn play" id="play-btn" onclick="togglePlay()" title="Reproducir / Pausar">▶</button>
         </div>
         <div class="vol-row">
           <span class="vol-icon">VOL</span>
@@ -664,17 +662,6 @@ function stopAudio() {
   apiFetch('/api/audio/control', 'POST', { action: 'stop' });
 }
 
-function prevTrack() {
-  if (!S.tracks.length) return;
-  const i = S.curTrack ? S.tracks.findIndex(t => t.id === S.curTrack.id) : 0;
-  selectTrack(S.tracks[Math.max(0, i - 1)]);
-}
-function nextTrack() {
-  if (!S.tracks.length) return;
-  const i = S.curTrack ? S.tracks.findIndex(t => t.id === S.curTrack.id) : 0;
-  selectTrack(S.tracks[Math.min(S.tracks.length - 1, i + 1)]);
-}
-
 function updatePlayBtn() {
   const btn = document.getElementById('play-btn');
   btn.textContent = S.playing ? '⏸' : '▶';
@@ -717,8 +704,45 @@ async function pollStatus() {
       `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   }
   if (data.audio) {
-    document.getElementById('vol').value = data.audio.volumen ?? data.audio.volume;
-    document.getElementById('vol-val').textContent = (data.audio.volumen ?? data.audio.volume) + '%';
+    // ── Volumen
+    const vol = data.audio.volumen ?? data.audio.volume ?? 70;
+    document.getElementById('vol').value = vol;
+    document.getElementById('vol-val').textContent = vol + '%';
+ 
+    // Estado de reproduccion
+    // status: 0=stopped 1=playing 2=paused
+    const wasPlaying = S.playing;
+    S.playing = (data.audio.status === 1);
+    if (wasPlaying !== S.playing) updatePlayBtn();
+ 
+    //Barra de progreso
+    const posSecs = data.audio.position ?? 0;
+ 
+    // Obtener duración de la pista actual
+    let durSecs = 0;
+    if (S.curTrack) {
+      const durStr = S.curTrack.duracion || S.curTrack.duration || '0:00';
+      const parts  = durStr.split(':');
+      durSecs = parseInt(parts[0] || 0) * 60 + parseInt(parts[1] || 0);
+    }
+ 
+    // Actualizar tiempo actual
+    const curM = Math.floor(posSecs / 60);
+    const curS = Math.floor(posSecs % 60);
+    document.getElementById('prog-cur').textContent =
+      curM + ':' + String(curS).padStart(2, '0');
+ 
+    // Actualizar ancho de la barra
+    if (durSecs > 0) {
+      const pct = Math.min(100, (posSecs / durSecs) * 100).toFixed(1);
+      document.getElementById('prog-fill').style.width = pct + '%';
+    }
+ 
+    // Termino la cancion / track
+    if (data.audio.status === 0 && S.curTrack) {
+      document.getElementById('prog-fill').style.width = '0%';
+      document.getElementById('prog-cur').textContent  = '0:00';
+    }
   }
 }
 
