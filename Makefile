@@ -1,4 +1,3 @@
-
 CC      := gcc
 TARGET  := robot-server
 SRCDIR  := src
@@ -9,10 +8,9 @@ SRCS    := $(wildcard $(SRCDIR)/*.c)
 OBJS    := $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
 
 CFLAGS  := -Wall -Wextra -O2 -g -I$(SRCDIR)
-LDFLAGS := -lmicrohttpd -lpthread -lmpg123 -lasound
+LDFLAGS := -lmicrohttpd -lpthread -lmpg123 -lasound -lpigpio -lrt
 
-
-.PHONY: all clean run install-service
+.PHONY: all clean run
 
 all: $(OBJDIR) $(TARGET)
 
@@ -30,4 +28,4 @@ clean:
 
 run: all
 	@mkdir -p audio
-	./$(TARGET)
+	sudo ./$(TARGET)

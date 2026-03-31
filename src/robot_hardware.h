@@ -21,4 +21,8 @@ int robot_hw_init();
  */
 void robot_hw_cleanup();
 
+double robot_get_distancia_frontal();
+double robot_get_distancia_izq();
+double robot_get_distancia_der();
+
 #endif // ROBOT_HARDWARE_H
