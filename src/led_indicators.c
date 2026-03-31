@@ -1,27 +1,34 @@
 #include "led_indicators.h"
-#include <pigpio.h>
+#ifdef SIMULACION
+    #include "pigpio_mock.h"
+#else
+    #include <pigpio.h>
+#endif
 
+#define PIN_SISTEMA 16
+#define PIN_AUTONOMO 20
+#define PIN_MANUAL 21
+#define PIN_OBSTACULO 26
 
 void leds_init() {
-    gpioSetMode(LED_SISTEMA, PI_OUTPUT);
-    gpioSetMode(LED_AUTONOMO, PI_OUTPUT);
-    gpioSetMode(LED_MANUAL, PI_OUTPUT);
-    gpioSetMode(LED_OBSTACULO, PI_OUTPUT);
+    gpioSetMode(PIN_SISTEMA, PI_OUTPUT);
+    gpioSetMode(PIN_AUTONOMO, PI_OUTPUT);
+    gpioSetMode(PIN_MANUAL, PI_OUTPUT);
+    gpioSetMode(PIN_OBSTACULO, PI_OUTPUT);
     leds_apagar_todos();
 }
 
 void leds_apagar_todos() {
-    gpioWrite(LED_SISTEMA, 0);
-    gpioWrite(LED_AUTONOMO, 0);
-    gpioWrite(LED_MANUAL, 0);
-    gpioWrite(LED_OBSTACULO, 0);
+    gpioWrite(PIN_SISTEMA, 0);
+    gpioWrite(PIN_AUTONOMO, 0);
+    gpioWrite(PIN_MANUAL, 0);
+    gpioWrite(PIN_OBSTACULO, 0);
 }
-
 void led_set(int pin, int estado) {
     gpioWrite(pin, estado ? 1 : 0);
 }
 
-void led_set_sistema(int estado) { led_set(LED_SISTEMA, estado); }
-void led_set_autonomo(int estado) { led_set(LED_AUTONOMO, estado); }
-void led_set_manual(int estado) { led_set(LED_MANUAL, estado); }
-void led_set_obstaculo(int estado) { led_set(LED_OBSTACULO, estado); }
+void led_set_sistema(int estado) { gpioWrite(PIN_SISTEMA, estado ? 1 : 0); }
+void led_set_autonomo(int estado) { gpioWrite(PIN_AUTONOMO, estado ? 1 : 0); }
+void led_set_manual(int estado) { gpioWrite(PIN_MANUAL, estado ? 1 : 0); }
+void led_set_obstaculo(int estado) { gpioWrite(PIN_OBSTACULO, estado ? 1 : 0); }

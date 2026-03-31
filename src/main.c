@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+
 #include "robot_state.h"
 #include "lib_audio.h"
 #include "auth.h"
@@ -15,6 +16,7 @@
 #include "robot_hardware.h"
 #include "led_indicators.h"
 #include "motor_control.h"
+
 
 // Configuraciones del servidor iniciales
 #define SERVER_PORT      8080
@@ -40,7 +42,9 @@ static const char *mime_for(const char *path) {
     return "application/octet-stream";
 }
 
-static enum MHD_Result serve_file(struct MHD_Connection *conn, const char *rel) {
+static enum MHD_Result serve_file(struct MHD_Connection *conn,
+                                   const char *rel)
+{
     char path[512];
     snprintf(path, sizeof(path), "%s%s", WWW_ROOT, rel);
 
@@ -50,7 +54,8 @@ static enum MHD_Result serve_file(struct MHD_Connection *conn, const char *rel) 
     struct stat st;
     if (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode)) { close(fd); return MHD_NO; }
 
-    struct MHD_Response *r = MHD_create_response_from_fd((uint64_t)st.st_size, fd);
+    struct MHD_Response *r =
+        MHD_create_response_from_fd((uint64_t)st.st_size, fd);
     MHD_add_response_header(r, "Content-Type",  mime_for(path));
     MHD_add_response_header(r, "Cache-Control", "no-cache");
     enum MHD_Result ret = MHD_queue_response(conn, MHD_HTTP_OK, r);
@@ -58,8 +63,11 @@ static enum MHD_Result serve_file(struct MHD_Connection *conn, const char *rel) 
     return ret;
 }
 
-static enum MHD_Result send_redirect(struct MHD_Connection *conn, const char *to) {
-    struct MHD_Response *r = MHD_create_response_from_buffer(0, NULL, MHD_RESPMEM_PERSISTENT);
+static enum MHD_Result send_redirect(struct MHD_Connection *conn,
+                                      const char *to)
+{
+    struct MHD_Response *r =
+        MHD_create_response_from_buffer(0, NULL, MHD_RESPMEM_PERSISTENT);
     MHD_add_response_header(r, "Location", to);
     enum MHD_Result ret = MHD_queue_response(conn, MHD_HTTP_FOUND, r);
     MHD_destroy_response(r);
@@ -68,7 +76,9 @@ static enum MHD_Result send_redirect(struct MHD_Connection *conn, const char *to
 
 static enum MHD_Result send_404(struct MHD_Connection *conn) {
     const char *b = "{\"error\":\"Not found\"}";
-    struct MHD_Response *r = MHD_create_response_from_buffer(strlen(b), (void *)b, MHD_RESPMEM_PERSISTENT);
+    struct MHD_Response *r =
+        MHD_create_response_from_buffer(strlen(b), (void *)b,
+                                        MHD_RESPMEM_PERSISTENT);
     MHD_add_response_header(r, "Content-Type", "application/json");
     enum MHD_Result ret = MHD_queue_response(conn, MHD_HTTP_NOT_FOUND, r);
     MHD_destroy_response(r);
@@ -77,7 +87,9 @@ static enum MHD_Result send_404(struct MHD_Connection *conn) {
 
 static enum MHD_Result send_401(struct MHD_Connection *conn) {
     const char *b = "{\"error\":\"Unauthorized\"}";
-    struct MHD_Response *r = MHD_create_response_from_buffer(strlen(b), (void *)b, MHD_RESPMEM_PERSISTENT);
+    struct MHD_Response *r =
+        MHD_create_response_from_buffer(strlen(b), (void *)b,
+                                        MHD_RESPMEM_PERSISTENT);
     MHD_add_response_header(r, "Content-Type", "application/json");
     enum MHD_Result ret = MHD_queue_response(conn, MHD_HTTP_UNAUTHORIZED, r);
     MHD_destroy_response(r);
@@ -88,12 +100,18 @@ static enum MHD_Result send_401(struct MHD_Connection *conn) {
    Main request handler / router
 ══════════════════════════════════════════════════════════ */
 static enum MHD_Result handle_request(
-    void *cls, struct MHD_Connection *conn, const char *url,
-    const char *method, const char *version, const char *upload_data,
-    size_t *upload_data_size, void **con_cls)
+    void *cls,
+    struct MHD_Connection *conn,
+    const char *url,
+    const char *method,
+    const char *version,
+    const char *upload_data,
+    size_t     *upload_data_size,
+    void      **con_cls)
 {
     (void)cls; (void)version;
 
+    // First call para los acumuladores
     if (*con_cls == NULL) {
         UploadBuf *buf = calloc(1, sizeof(UploadBuf));
         if (!buf) return MHD_NO;
@@ -103,6 +121,7 @@ static enum MHD_Result handle_request(
 
     UploadBuf *ub = *con_cls;
 
+    /* Acumular los POST body */
     if (*upload_data_size > 0) {
         size_t need = ub->used + *upload_data_size + 1;
         if (need > MAX_UPLOAD_BYTES) return MHD_NO;
@@ -115,12 +134,15 @@ static enum MHD_Result handle_request(
         return MHD_YES;
     }
 
+    /* Todos los body recibidos */
     int is_get  = strcmp(method, "GET")  == 0;
     int is_post = strcmp(method, "POST") == 0;
     const char *body = ub->data ? ub->data : "";
 
+    /* Establecer los CORS de seguridad */
     if (strcmp(method, "OPTIONS") == 0) {
-        struct MHD_Response *r = MHD_create_response_from_buffer(0, NULL, MHD_RESPMEM_PERSISTENT);
+        struct MHD_Response *r =
+            MHD_create_response_from_buffer(0, NULL, MHD_RESPMEM_PERSISTENT);
         MHD_add_response_header(r, "Access-Control-Allow-Origin",  "*");
         MHD_add_response_header(r, "Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         MHD_add_response_header(r, "Access-Control-Allow-Headers", "Content-Type");
@@ -129,20 +151,24 @@ static enum MHD_Result handle_request(
         return ret;
     }
 
+    /* ── Rutas publicas ── */
     if (is_get && (strcmp(url, "/") == 0 || strcmp(url, "/index.html") == 0))
         return serve_file(conn, "/login.html");
 
     if (is_post && strcmp(url, "/api/login") == 0)
         return api_login(conn, body, ub->used);
 
+    /* ── Autenticacion ── */
     if (!auth_check_request(conn)) {
         if (strncmp(url, "/api/", 5) == 0) return send_401(conn);
         return send_redirect(conn, "/");
     }
 
+    /* ── Rutas de paginas protegidas ── */
     if (is_get && strcmp(url, "/dashboard") == 0)
         return serve_file(conn, "/dashboard.html");
 
+    /* ── Rutas de API protegidas ── */
     if (is_post && strcmp(url, "/api/logout") == 0)
         return api_logout(conn);
 
@@ -167,7 +193,10 @@ static enum MHD_Result handle_request(
     return send_404(conn);
 }
 
-static void request_done(void *cls, struct MHD_Connection *conn, void **con_cls, enum MHD_RequestTerminationCode toe) {
+static void request_done(void *cls, struct MHD_Connection *conn,
+                          void **con_cls,
+                          enum MHD_RequestTerminationCode toe)
+{
     (void)cls; (void)conn; (void)toe;
     UploadBuf *ub = *con_cls;
     if (ub) { free(ub->data); free(ub); *con_cls = NULL; }
@@ -191,6 +220,7 @@ static void *uptime_thread(void *arg) {
     }
     return NULL;
 }
+
 
 /* ══════════════════════════════════════════════════════════
    Hilo de Navegación Autónoma y Lectura de Sensores
@@ -232,7 +262,7 @@ static void *autonomous_thread(void *arg) {
         pthread_mutex_unlock(&rs->lock);
 
         // 4. Actualizar el LED físico de hardware (PIN_OBSTACULO = 26)
-        led_set(LED_OBSTACULO, obstaculo);
+        led_set(26, obstaculo);
 
         // 5. LÓGICA REACTIVA (Solo si estamos en MODO AUTÓNOMO)
         if (modo_actual == MODE_AUTONOMOUS) {

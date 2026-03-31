@@ -1,5 +1,11 @@
 #include "ultrasonic_sensor.h"
-#include <pigpio.h>
+
+
+#ifdef SIMULACION
+    #include "pigpio_mock.h"
+#else
+    #include <pigpio.h>
+#endif
 
 void sensor_init(SensorUltrasonico* sensor, int trigger, int echo) {
     sensor->pinTrigger = trigger;

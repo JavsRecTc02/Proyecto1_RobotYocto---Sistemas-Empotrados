@@ -16,4 +16,4 @@ void led_set_autonomo(int estado);
 void led_set_manual(int estado);
 void led_set_obstaculo(int estado);
 
-#endif // LED_INDICATORS_H
+#endif

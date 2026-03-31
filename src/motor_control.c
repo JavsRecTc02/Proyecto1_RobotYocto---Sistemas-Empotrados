@@ -1,6 +1,12 @@
 #include "motor_control.h"
-#include <pigpio.h>
+
+
 #include <unistd.h> // Para usleep
+#ifdef SIMULACION
+    #include "pigpio_mock.h"
+#else
+    #include <pigpio.h>
+#endif
 
 // Pines para Motor Izquierdo (A)
 #define ENA 12 // PWM Hardware

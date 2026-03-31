@@ -15,6 +15,7 @@
 typedef struct { const char *user; const char *pass_hash; } UserEntry;
 
 static const UserEntry USERS[] = {
+    { "kendall", "3e6dc62f220c57f4e44e3dd541c175b3a4fd22986bafa16d47ce3d4c2b224ac8" },
     { "user1", "0b14d501a594442a01c6859541bcb3e8164d183d32937b851835442f69d5c94e" },
 };
 static const int NUM_USERS = (int)(sizeof(USERS) / sizeof(USERS[0]));

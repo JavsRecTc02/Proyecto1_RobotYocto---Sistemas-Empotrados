@@ -1,6 +1,12 @@
 #include "robot_hardware.h"
 #include <stdio.h>
-#include <pigpio.h>
+
+
+#ifdef SIMULACION
+    #include "pigpio_mock.h"
+#else
+    #include <pigpio.h>
+#endif
 
 // Instancias globales de los sensores
 SensorUltrasonico sensorFrontal;
@@ -51,14 +57,44 @@ void robot_hw_cleanup() {
     }
 }
 
+/* ══════════════════════════════════════════════════════════
+   LECTURA DE SENSORES (REAL vs SIMULACIÓN)
+══════════════════════════════════════════════════════════ */
+
+#ifdef SIMULACION
+// Función interna para leer el archivo de texto generado por Python
+static double leer_simulador(int index) {
+    FILE *f = fopen("sim_data.txt", "r");
+    if (!f) return 50.0; // Distancia segura por defecto si no existe el archivo
+    
+    double d[3] = {50.0, 50.0, 50.0};
+    fscanf(f, "%lf %lf %lf", &d[0], &d[1], &d[2]);
+    fclose(f);
+    
+    return d[index];
+}
+#endif
+
 double robot_get_distancia_frontal() { 
+#ifdef SIMULACION
+    return leer_simulador(0);
+#else
     return sensor_leer_distancia(&sensorFrontal); 
+#endif
 }
 
 double robot_get_distancia_izq() { 
+#ifdef SIMULACION
+    return leer_simulador(1);
+#else
     return sensor_leer_distancia(&sensorLateralIzq); 
+#endif
 }
 
 double robot_get_distancia_der() { 
+#ifdef SIMULACION
+    return leer_simulador(2);
+#else
     return sensor_leer_distancia(&sensorLateralDer); 
+#endif
 }
