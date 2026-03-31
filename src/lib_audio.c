@@ -317,7 +317,7 @@ static void *playback_thread(void *arg)
 }
 
 /* ═══════════════════════════════════════════════════════════
-   API - Inicializacion
+   API - Inicializacion con parametros iniciales
 ═══════════════════════════════════════════════════════════ */
 
 int lib_audio_init(const char *audio_dir)
@@ -329,7 +329,7 @@ int lib_audio_init(const char *audio_dir)
             audio_dir ? audio_dir : LIB_AUDIO_DIR_DEFAULT,
             sizeof(g.audio_dir) - 1);
 
-    g.volume     = 70;
+    g.volume     = 60;
     g.status     = LIB_AUDIO_STOPPED;
     g.current_id = -1;
     g.notify_pid = -1;
@@ -568,6 +568,10 @@ void lib_audio_notify(NotificationEvent event)
         return;
     }
 
+    // Pausar el track si se esta reproduciendo audio
+    int was_playing = (g.status == LIB_AUDIO_PLAYING);
+    if (was_playing) lib_audio_pause();
+
     // Terminar notificaciones actuales
     if (g.notify_pid > 0) {
         kill(g.notify_pid, SIGTERM);
@@ -590,6 +594,12 @@ void lib_audio_notify(NotificationEvent event)
     } else if (pid > 0) {
         g.notify_pid = pid;
         printf("[audio] Notificación: %s\n", NAMES[event]);
+
+        // Resumir el audio que se pauso para la notificacion
+        waitpid(pid, NULL, 0);
+        g.notify_pid = -1;
+        if (was_playing) lib_audio_resume();
+
     } else {
         fprintf(stderr, "[audio] Audio fallido para notificación\n");
     }

@@ -237,6 +237,8 @@ int main(void) {
     if (lib_audio_init(NULL) < 0)  { fprintf(stderr, "[main] audio init failed\n"); robot_state_destroy(); return 1; }
     if (auth_init()        < 0)  { fprintf(stderr, "[main] autorizacion inicial fallo\n");   robot_state_destroy(); return 1; }
 
+    lib_audio_notify(NOTIFY_STARTUP); 
+
     signal(SIGINT,  on_signal);
     signal(SIGTERM, on_signal);
 
