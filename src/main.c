@@ -9,7 +9,8 @@
 #include <fcntl.h>
 
 #include "robot_state.h"
-#include "lib_audio.h"
+#include "../lib/lib_audio.h"
+#include "../lib/lib_leds.h"
 #include "auth.h"
 #include "api.h"
 
@@ -216,6 +217,40 @@ static void *uptime_thread(void *arg) {
     return NULL;
 }
 
+/* ══════════════════════════════════════════════════════════
+   Hilo watchdog, para volver al modo autonomo una vez
+   no hay usuarios logueados en el servidor
+══════════════════════════════════════════════════════════ */
+#define WATCHDOG_INTERVAL_SECS 7
+
+static void set_auto_mode(const char *reason) {
+    RobotState *rs = robot_state_get();
+    if (!rs) return;
+    pthread_mutex_lock(&rs->lock);
+    if (rs->mode != MODE_AUTONOMOUS) {
+        rs->mode            = MODE_AUTONOMOUS;
+        rs->leds.autonomous = 1;
+        rs->leds.manual     = 0;
+        pthread_mutex_unlock(&rs->lock);     
+        printf("[watchdog] %s → modo AUTONOMO\n", reason);
+        lib_audio_notify(NOTIFY_AUTONOMOUS);  
+        return;
+    }
+    pthread_mutex_unlock(&rs->lock);
+}
+
+static void *watchdog_thread(void *arg) {
+    (void)arg;
+    while (g_running) {
+        sleep(WATCHDOG_INTERVAL_SECS);
+        int sesiones = auth_active_sessions();
+        // printf("[watchdog] tick — sesiones activas: %d\n", sesiones);
+        if (sesiones == 0)
+            set_auto_mode("sin sesiones activas");
+    }
+    return NULL;
+}
+
 // Handler de la signal
 static struct MHD_Daemon *g_daemon = NULL;
 static void on_signal(int s) {
@@ -236,14 +271,31 @@ int main(void) {
     if (robot_state_init() < 0)  { fprintf(stderr, "[main] estado inicial fallo\n");  return 1; }
     if (lib_audio_init(NULL) < 0)  { fprintf(stderr, "[main] audio init failed\n"); robot_state_destroy(); return 1; }
     if (auth_init()        < 0)  { fprintf(stderr, "[main] autorizacion inicial fallo\n");   robot_state_destroy(); return 1; }
+    if (lib_leds_init() < 0) { /* solo warning, no falla fatal */ } 
 
+    // Notificacion de encendido
     lib_audio_notify(NOTIFY_STARTUP); 
 
+    // Iniciar en modo autonomo
+    {
+        RobotState *rs = robot_state_get();
+        if (rs) {
+            pthread_mutex_lock(&rs->lock);
+            rs->mode = MODE_AUTONOMOUS;
+            pthread_mutex_unlock(&rs->lock);
+        }
+        printf("[main] Modo inicial: AUTONOMO\n");
+        lib_audio_notify(NOTIFY_AUTONOMOUS);
+    }
+
+    lib_leds_sync_from_state();
     signal(SIGINT,  on_signal);
     signal(SIGTERM, on_signal);
 
-    pthread_t tid;
-    pthread_create(&tid, NULL, uptime_thread, NULL);
+    // Inicializar Threads
+    pthread_t tid_uptime, tid_watchdog;
+    pthread_create(&tid_uptime,   NULL, uptime_thread,   NULL);
+    pthread_create(&tid_watchdog, NULL, watchdog_thread, NULL);
 
     g_daemon = MHD_start_daemon(
         MHD_USE_THREAD_PER_CONNECTION | MHD_USE_INTERNAL_POLLING_THREAD,
@@ -270,10 +322,12 @@ int main(void) {
     while (g_running) sleep(1);
 
     g_running = 0;
-    pthread_join(tid, NULL);
+    pthread_join(tid_uptime,   NULL);
+    pthread_join(tid_watchdog, NULL);
     auth_destroy();
     lib_audio_destroy();
     robot_state_destroy();
+    lib_leds_destroy();
     printf("[server] Close.\n");
     return 0;
 }

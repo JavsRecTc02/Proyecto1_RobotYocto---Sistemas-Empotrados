@@ -329,7 +329,7 @@ int lib_audio_init(const char *audio_dir)
             audio_dir ? audio_dir : LIB_AUDIO_DIR_DEFAULT,
             sizeof(g.audio_dir) - 1);
 
-    g.volume     = 60;
+    g.volume     = 40;
     g.status     = LIB_AUDIO_STOPPED;
     g.current_id = -1;
     g.notify_pid = -1;

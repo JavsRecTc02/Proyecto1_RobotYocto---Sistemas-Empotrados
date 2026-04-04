@@ -1,7 +1,8 @@
 #include "api.h"
 #include "auth.h"
 #include "robot_state.h"
-#include "lib_audio.h"
+#include "../lib/lib_audio.h"
+#include "../lib/lib_leds.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -240,6 +241,8 @@ enum MHD_Result api_set_mode(struct MHD_Connection *conn,
 
     // FALTA AGREGAR EL lib_audio_notify(NOTIFY_OBSTACLE) nada mas
     // pero todavia no esta definido eso de los obstaculos
+    //    lib_leds_set(LED_OBSTACLE, 1);  
+    //    lib_leds_set(LED_OBSTACLE, 0);  
 
     if (strcmp(mode_str, "manual") == 0) {
         rs->mode            = MODE_MANUAL;
@@ -247,19 +250,21 @@ enum MHD_Result api_set_mode(struct MHD_Connection *conn,
         rs->leds.manual     = 1;
         printf("[api] mode -> MANUAL\n");
         pthread_mutex_unlock(&rs->lock);          
-        lib_audio_notify(NOTIFY_MANUAL);          
+        lib_audio_notify(NOTIFY_MANUAL);
+        lib_leds_set(LED_MANUAL,     1);
+        lib_leds_set(LED_AUTONOMOUS, 0);          
         // Funcionalidad de modo MANUAL
     } else {
         rs->mode            = MODE_AUTONOMOUS;
         rs->leds.autonomous = 1;
         rs->leds.manual     = 0;
         printf("[api] mode -> AUTONOMOUS\n");
-        pthread_mutex_unlock(&rs->lock);          // <-- desbloquear ANTES
-        lib_audio_notify(NOTIFY_AUTONOMOUS);      // <-- agregar aquí
-        // Funcionalidad de modo AUTONOMO
+        pthread_mutex_unlock(&rs->lock);          
+        lib_audio_notify(NOTIFY_AUTONOMOUS);
+        lib_leds_set(LED_AUTONOMOUS, 1);
+        lib_leds_set(LED_MANUAL,     0);      
     }
 
-    pthread_mutex_unlock(&rs->lock);
     return send_json(conn, MHD_HTTP_OK, "{\"ok\":true}");
 }
 

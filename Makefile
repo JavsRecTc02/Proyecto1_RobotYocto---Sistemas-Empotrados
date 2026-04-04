@@ -1,28 +1,36 @@
-
 CC      := gcc
 TARGET  := robot-server
 SRCDIR  := src
 LIBDIR  := lib
 OBJDIR  := build
 
-SRCS    := $(wildcard $(SRCDIR)/*.c)   
-OBJS    := $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
+# Directorios
+SRCS    := $(wildcard $(SRCDIR)/*.c) $(wildcard $(LIBDIR)/*.c)
 
-CFLAGS  := -Wall -Wextra -O2 -g -I$(SRCDIR)
+# Objetos 
+OBJS    := $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/src/%.o, \
+           $(filter $(SRCDIR)/%.c, $(SRCS))) \
+           $(patsubst $(LIBDIR)/%.c, $(OBJDIR)/lib/%.o, \
+           $(filter $(LIBDIR)/%.c, $(SRCS)))
+
+CFLAGS  := -Wall -Wextra -O2 -g -I$(SRCDIR) -Ilib
+
 LDFLAGS := -lmicrohttpd -lpthread -lmpg123 -lasound
 
-
-.PHONY: all clean run install-service
+.PHONY: all clean run
 
 all: $(OBJDIR) $(TARGET)
 
 $(OBJDIR):
-	mkdir -p $(OBJDIR)
+	mkdir -p $(OBJDIR)/src $(OBJDIR)/lib
 
 $(TARGET): $(OBJS)
 	$(CC) $(OBJS) $(LDFLAGS) -o $@
 
-$(OBJDIR)/%.o: $(SRCDIR)/%.c
+$(OBJDIR)/src/%.o: $(SRCDIR)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/lib/%.o: $(LIBDIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
