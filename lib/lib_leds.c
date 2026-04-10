@@ -1,81 +1,9 @@
 #include "lib_leds.h"
-#include "../src/robot_state.h"
+#include "robot_state.h" 
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/stat.h>
-
-// Escribe una cadena en un archivo sysfs
-static int sysfs_write(const char *path, const char *value)
-{
-    int fd = open(path, O_WRONLY);
-    if (fd < 0) return -1;
-    ssize_t n = write(fd, value, strlen(value));
-    close(fd);
-    return (n < 0) ? -1 : 0;
-}
-
-// Exporta un pin GPIO y lo configura como salida 
-static int gpio_export(int pin)
-{
-    char path[64];
-
-    // Verificar si ya esta exportado el gpio
-    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d", pin);
-    struct stat st;
-    if (stat(path, &st) == 0) {
-        // Si lo esta, entonces solo asegurar direccion output
-        char dir_path[80];
-        snprintf(dir_path, sizeof(dir_path),
-                 "/sys/class/gpio/gpio%d/direction", pin);
-        sysfs_write(dir_path, "out");
-        return 0;
-    }
-
-    // Exportar el pin
-    char pin_str[8];
-    snprintf(pin_str, sizeof(pin_str), "%d", pin);
-    if (sysfs_write("/sys/class/gpio/export", pin_str) < 0) {
-        fprintf(stderr, "[leds] ERROR: no se pudo exportar GPIO %d\n", pin);
-        return -1;
-    }
-
-    // Esperar a que el kernel cree la entrada 
-    usleep(100 * 1000); 
-
-    // Configurar el pin como salida 
-    char dir_path[80];
-    snprintf(dir_path, sizeof(dir_path),
-             "/sys/class/gpio/gpio%d/direction", pin);
-    if (sysfs_write(dir_path, "out") < 0) {
-        fprintf(stderr, "[leds] ERROR: no se pudo configurar GPIO %d como salida\n", pin);
-        return -1;
-    }
-
-    return 0;
-}
-
-/* ══════════════════════════════════════════════════════════
-   Estado de los LEDS
-══════════════════════════════════════════════════════════ */
-
-// Escribe el valor (0/1) en el pin GPIO 
-static void gpio_write(int pin, int value)
-{
-    char path[80];
-    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/value", pin);
-    sysfs_write(path, value ? "1" : "0");
-}
-
-// Libera (unexport) un pin GPIO 
-static void gpio_unexport(int pin)
-{
-    char pin_str[8];
-    snprintf(pin_str, sizeof(pin_str), "%d", pin);
-    sysfs_write("/sys/class/gpio/unexport", pin_str);
-}
+#include <pigpio.h> // Usamos pigpio en lugar de fcntl/unistd/sysfs
 
 /* ══════════════════════════════════════════════════════════
    Estado interno de la biblioteca
@@ -94,16 +22,15 @@ static const int LED_PINS[LED_COUNT] = {
 
 // Estado 1 | 0
 typedef struct {
-    int            state;     
+    int state;     
 } LedEntry;
 
-static LedEntry    g_leds[LED_COUNT];
+static LedEntry g_leds[LED_COUNT];
 static pthread_mutex_t g_lock;
-static int         g_initialized = 0;
-
+static int g_initialized = 0;
 
 /* ══════════════════════════════════════════════════════════
-   API publica para los LEDS
+   API publica para los LEDS (AHORA USANDO PIGPIO)
 ══════════════════════════════════════════════════════════ */
 
 int lib_leds_init(void)
@@ -117,20 +44,14 @@ int lib_leds_init(void)
         return -1;
     }
 
-    printf("[leds] Inicializando pines GPIOs\n");
+    printf("[leds] Inicializando pines GPIOs (via pigpio)\n");
 
-    int any_error = 0;
+    // NOTA: pigpio ya fue inicializado por robot_hw_init() en main.c
+    // Solo necesitamos configurar los pines como salida
     for (int i = 0; i < LED_COUNT; i++) {
-        if (gpio_export(LED_PINS[i]) < 0) {
-            fprintf(stderr, "[leds] WARN: GPIO %d (%s) no disponible\n",
-                    LED_PINS[i], LED_NAMES[i]);
-            any_error = 1;
-        } else {
-            // Apagar LED al iniciar
-            gpio_write(LED_PINS[i], 0);
-            printf("[leds] GPIO %d configurado para LED_%s\n",
-                   LED_PINS[i], LED_NAMES[i]);
-        }
+        gpioSetMode(LED_PINS[i], PI_OUTPUT);
+        gpioWrite(LED_PINS[i], 0); // Apagar por defecto
+        printf("[leds] GPIO %d configurado para LED_%s\n", LED_PINS[i], LED_NAMES[i]);
     }
 
     g_initialized = 1;
@@ -138,47 +59,33 @@ int lib_leds_init(void)
     // Encender LED de power automaticamente
     lib_leds_set(LED_POWER, 1);
 
-    if (any_error)
-        printf("[leds] Inicializado con fallos en GPIOs\n");
-    else
-        printf("[leds] Inicializado GPIOs OK\n");
-
+    printf("[leds] Inicializado GPIOs OK\n");
     return 0;
 }
 
-/* ══════════════════════════════════════════════════════════
-   Funciones Principales
-══════════════════════════════════════════════════════════ */
-
 // Encender o Apagar el LED
-
 void lib_leds_set(LedId led, int state)
 {
-    if (!g_initialized) return;
-    if (led < 0 || led >= LED_COUNT) return;
+    if (!g_initialized || led < 0 || led >= LED_COUNT) return;
 
     state = state ? 1 : 0;
 
     pthread_mutex_lock(&g_lock);
-
     int prev = g_leds[led].state;
     g_leds[led].state = state;
-
     pthread_mutex_unlock(&g_lock);
 
-    // Escribir al GPIO fisico
-    gpio_write(LED_PINS[led], state);
+    // Escribir al GPIO fisico usando pigpio
+    gpioWrite(LED_PINS[led], state);
 
-    // Print para ver estado en el Server
+    // Print para ver estado en el Server (solo si cambia)
     if (prev != state) {
         printf("[leds] LED_%-10s GPIO %2d → %s\n",
-               LED_NAMES[led], LED_PINS[led],
-               state ? "ON" : "OFF");
+               LED_NAMES[led], LED_PINS[led], state ? "ON" : "OFF");
     }
 }
 
 // Obtener el estado actual del LED
-
 int lib_leds_get(LedId led)
 {
     if (!g_initialized || led < 0 || led >= LED_COUNT) return 0;
@@ -191,18 +98,17 @@ int lib_leds_get(LedId led)
 }
 
 // Apagar LEDS y liberar los GPIO
-
 void lib_leds_destroy(void)
 {
     if (!g_initialized) return;
 
-    printf("[leds] Apagando LEDs y liberando GPIOs\n");
+    printf("[leds] Apagando LEDs\n");
 
     for (int i = 0; i < LED_COUNT; i++) {
-        gpio_write(LED_PINS[i], 0);
-        gpio_unexport(LED_PINS[i]);
-        printf("[leds] LED_%-10s GPIO %2d → OFF\n",
-               LED_NAMES[i], LED_PINS[i]);
+        gpioWrite(LED_PINS[i], 0);
+        // Regresamos el pin a modo entrada como buena práctica de limpieza
+        gpioSetMode(LED_PINS[i], PI_INPUT); 
+        printf("[leds] LED_%-10s GPIO %2d → OFF\n", LED_NAMES[i], LED_PINS[i]);
     }
 
     pthread_mutex_destroy(&g_lock);
@@ -210,7 +116,6 @@ void lib_leds_destroy(void)
 }
 
 // Sincronizar los LEDS
-
 void lib_leds_sync_from_state(void)
 {
     RobotState *rs = robot_state_get();
