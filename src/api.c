@@ -7,10 +7,10 @@
 #include "api.h"
 #include "auth.h"
 #include "robot_state.h"
-#include "../lib/lib_audio.h"
-#include "../lib/lib_leds.h"
+#include "lib_audio.h"
+#include "lib_leds.h"
 #include "robot_hardware.h"
-#include "motor_control.h"
+#include "lib_motors.h"
 
 /* ═══════════════════════════════════════════════════════════
    Definicion de helpers internos

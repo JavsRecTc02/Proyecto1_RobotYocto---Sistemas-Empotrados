@@ -17,9 +17,8 @@ int robot_hw_init() {
     
     inicializado = 1;
 
-    // Inicializar los pines de los motores y los LEDs
+    // Inicializar los pines de los motores
     motores_init();
-    leds_init();
 
     // Asignar pines BCM a los sensores (Trigger, Echo)
     // NOTA: Los pines Echo (27, 10, 11) deben tener el divisor de voltaje a 3.3V
@@ -27,18 +26,12 @@ int robot_hw_init() {
     sensor_init(&sensorLateralIzq, 22, 10);
     sensor_init(&sensorLateralDer, 9, 11);
 
-    // Indicar hardware listo encendiendo el LED de sistema
-    led_set_sistema(1); 
-
     return 0;
 }
 
 void robot_hw_cleanup() {
     if (inicializado) {
         motores_detener();
-        
-        // Apagar todos los LEDs
-        leds_apagar_todos();
         
         // Bajar a LOW los pines Trigger para no dejarlos emitiendo
         gpioWrite(sensorFrontal.pinTrigger, 0);

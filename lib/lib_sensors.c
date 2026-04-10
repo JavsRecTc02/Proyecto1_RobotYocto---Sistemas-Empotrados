@@ -1,4 +1,4 @@
-#include "ultrasonic_sensor.h"
+#include "lib_sensors.h"
 #include <pigpio.h>
 
 void sensor_init(SensorUltrasonico* sensor, int trigger, int echo) {

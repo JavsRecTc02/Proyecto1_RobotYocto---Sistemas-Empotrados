@@ -9,13 +9,12 @@
 #include <fcntl.h>
 
 #include "robot_state.h"
-#include "../lib/lib_audio.h"
-#include "../lib/lib_leds.h"
+#include "lib_audio.h"
+#include "lib_leds.h"
 #include "auth.h"
 #include "api.h"
 #include "robot_hardware.h"
-#include "led_indicators.h"
-#include "motor_control.h"
+#include "lib_motors.h"
 
 // Configuraciones del servidor iniciales
 #define SERVER_PORT      8080
@@ -227,6 +226,84 @@ static void *watchdog_thread(void *arg) {
     return NULL;
 }
 
+/* ══════════════════════════════════════════════════════════
+   Hilo de Navegación Autónoma y Lectura de Sensores
+══════════════════════════════════════════════════════════ */
+static void *autonomous_thread(void *arg) {
+    (void)arg;
+    
+    // Velocidades predefinidas (0-255 PWM) para el modo autónomo
+    int vel_crucero = 100;
+    int vel_giro = 150;
+
+    while (g_running) {
+        RobotState *rs = robot_state_get();
+        if (!rs) {
+            usleep(100000);
+            continue;
+        }
+
+        // 1. Leer los 3 sensores ultrasónicos en tiempo real
+        double d_front = robot_get_distancia_frontal();
+        double d_left  = robot_get_distancia_izq();
+        double d_right = robot_get_distancia_der();
+
+        // Si la lectura falla (timeout o fuera de rango), asumimos distancia segura
+        if (d_front < 0) d_front = 999.0;
+        if (d_left < 0)  d_left  = 999.0;
+        if (d_right < 0) d_right = 999.0;
+
+        // 2. Determinar si hay un obstáculo frontal (a menos de 15 cm)
+        int obstaculo = (d_front < 15.0);
+
+        // 3. Actualizar el Estado Global de forma segura (para la Web)
+        pthread_mutex_lock(&rs->lock);
+        OperationMode modo_actual = rs->mode;
+        rs->sensors.front_cm = d_front;
+        rs->sensors.left_cm  = d_left;
+        rs->sensors.right_cm = d_right;
+        
+        int prev_obstaculo = rs->leds.obstacle;
+        rs->leds.obstacle  = obstaculo;
+        pthread_mutex_unlock(&rs->lock);
+
+        // 4. Actualizar el LED físico usando la librería lib_leds (solo si cambió)
+        if (prev_obstaculo != obstaculo) {
+            lib_leds_set(LED_OBSTACLE, obstaculo);
+        }
+
+        // 5. LÓGICA REACTIVA (Solo si estamos en MODO AUTÓNOMO)
+        if (modo_actual == MODE_AUTONOMOUS) {
+            if (obstaculo) {
+                // Rutina de evasión
+                motores_detener();
+                usleep(200000); // Pausa 200ms
+                
+                motores_retroceder(120);
+                usleep(500000); // Retroceder 500ms
+                motores_detener();
+                usleep(100000);
+
+                // Evaluar cuál lado tiene más espacio usando los sensores laterales
+                if (d_left > d_right) {
+                    motores_girar_izquierda(vel_giro);
+                } else {
+                    motores_girar_derecha(vel_giro);
+                }
+                usleep(600000); // Girar por 600ms
+                motores_detener();
+            } else {
+                // Camino libre: avanzar continuamente
+                motores_avanzar(vel_crucero);
+            }
+        }
+        
+        // Muestreo de sensores a 10Hz
+        usleep(100000); 
+    }
+    return NULL;
+}
+
 // Handler de la signal
 static struct MHD_Daemon *g_daemon = NULL;
 static void on_signal(int s) {
@@ -245,6 +322,14 @@ int main(void) {
     printf("╚════════════════════════════════════╝\n\n");
 
     if (robot_state_init() < 0)  { fprintf(stderr, "[main] estado inicial fallo\n");  return 1; }
+    
+    // --- INICIALIZAR HARDWARE DE MOTORES Y SENSORES ---
+    if (robot_hw_init() < 0) { 
+        fprintf(stderr, "[main] hardware init failed (Requiere ejecutar con sudo)\n"); 
+        robot_state_destroy(); 
+        return 1; 
+    }    
+    
     if (lib_audio_init(NULL) < 0)  { fprintf(stderr, "[main] audio init failed\n"); robot_state_destroy(); return 1; }
     if (auth_init()        < 0)  { fprintf(stderr, "[main] autorizacion inicial fallo\n");   robot_state_destroy(); return 1; }
     if (lib_leds_init() < 0) { /* solo warning, no falla fatal */ } 
@@ -290,12 +375,14 @@ int main(void) {
     if (!g_daemon) {
         fprintf(stderr, "[main] fallo al iniciar el daemon en puerto %d\n", SERVER_PORT);
         g_running = 0;
-        pthread_join(tid, NULL);
+        pthread_join(tid_uptime, NULL);
+        pthread_join(tid_watchdog, NULL);
         pthread_join(auto_tid, NULL);
         auth_destroy();
         lib_audio_destroy();
         robot_hw_cleanup();
         robot_state_destroy();
+        lib_leds_destroy();
         return 1;
     }
 
@@ -309,11 +396,14 @@ int main(void) {
     g_running = 0;
     pthread_join(tid_uptime,   NULL);
     pthread_join(tid_watchdog, NULL);
+    pthread_join(auto_tid,     NULL); // Esperar a que el hilo autónomo termine
+    
     auth_destroy();
     lib_audio_destroy();
-    robot_hw_cleanup(); // Detener motores y liberar pines GPIO
+    robot_hw_cleanup(); // Detener motores y apagar triggers de sensores
     robot_state_destroy();
-    lib_leds_destroy();
+    lib_leds_destroy(); // Apagar LEDs físicos
+    
     printf("[server] Close.\n");
     return 0;
 }

@@ -1,4 +1,4 @@
-#include "motor_control.h"
+#include "lib_motors.h"
 #include <pigpio.h>
 #include <unistd.h> // Para usleep
 

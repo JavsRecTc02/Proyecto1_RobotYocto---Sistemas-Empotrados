@@ -1,9 +1,8 @@
 #ifndef ROBOT_HARDWARE_H
 #define ROBOT_HARDWARE_H
 
-#include "motor_control.h"
-#include "ultrasonic_sensor.h"
-#include "led_indicators.h"
+#include "lib_motors.h"
+#include "lib_sensors.h"
 
 // Variables globales para acceder a los sensores desde el servidor si es necesario
 extern SensorUltrasonico sensorFrontal;
