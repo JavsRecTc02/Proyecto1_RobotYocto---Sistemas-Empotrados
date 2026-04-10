@@ -9,7 +9,8 @@
 #include <fcntl.h>
 
 #include "robot_state.h"
-#include "lib_audio.h"
+#include "../lib/lib_audio.h"
+#include "../lib/lib_leds.h"
 #include "auth.h"
 #include "api.h"
 #include "robot_hardware.h"
@@ -193,75 +194,35 @@ static void *uptime_thread(void *arg) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   Hilo de Navegación Autónoma y Lectura de Sensores
+   Hilo watchdog, para volver al modo autonomo una vez
+   no hay usuarios logueados en el servidor
 ══════════════════════════════════════════════════════════ */
-static void *autonomous_thread(void *arg) {
+#define WATCHDOG_INTERVAL_SECS 7
+
+static void set_auto_mode(const char *reason) {
+    RobotState *rs = robot_state_get();
+    if (!rs) return;
+    pthread_mutex_lock(&rs->lock);
+    if (rs->mode != MODE_AUTONOMOUS) {
+        rs->mode            = MODE_AUTONOMOUS;
+        rs->leds.autonomous = 1;
+        rs->leds.manual     = 0;
+        pthread_mutex_unlock(&rs->lock);     
+        printf("[watchdog] %s → modo AUTONOMO\n", reason);
+        lib_audio_notify(NOTIFY_AUTONOMOUS);  
+        return;
+    }
+    pthread_mutex_unlock(&rs->lock);
+}
+
+static void *watchdog_thread(void *arg) {
     (void)arg;
-    
-    // Velocidades predefinidas (0-255 PWM) para el modo autónomo
-    int vel_crucero = 100;
-    int vel_giro = 150;
-
     while (g_running) {
-        RobotState *rs = robot_state_get();
-        if (!rs) {
-            usleep(100000);
-            continue;
-        }
-
-        // 1. Leer los 3 sensores ultrasónicos en tiempo real
-        double d_front = robot_get_distancia_frontal();
-        double d_left  = robot_get_distancia_izq();
-        double d_right = robot_get_distancia_der();
-
-        // Si la lectura falla (timeout o fuera de rango), asumimos distancia segura
-        if (d_front < 0) d_front = 999.0;
-        if (d_left < 0)  d_left  = 999.0;
-        if (d_right < 0) d_right = 999.0;
-
-        // 2. Determinar si hay un obstáculo frontal (a menos de 15 cm)
-        int obstaculo = (d_front < 15.0);
-
-        // 3. Actualizar el Estado Global de forma segura (para la Web)
-        pthread_mutex_lock(&rs->lock);
-        OperationMode modo_actual = rs->mode;
-        rs->sensors.front_cm = d_front;
-        rs->sensors.left_cm  = d_left;
-        rs->sensors.right_cm = d_right;
-        rs->leds.obstacle    = obstaculo;
-        pthread_mutex_unlock(&rs->lock);
-
-        // 4. Actualizar el LED físico de hardware (PIN_OBSTACULO = 26)
-        led_set(LED_OBSTACULO, obstaculo);
-
-        // 5. LÓGICA REACTIVA (Solo si estamos en MODO AUTÓNOMO)
-        if (modo_actual == MODE_AUTONOMOUS) {
-            if (obstaculo) {
-                // Rutina de evasión
-                motores_detener();
-                usleep(200000); // Pausa 200ms
-                
-                motores_retroceder(120);
-                usleep(500000); // Retroceder 500ms
-                motores_detener();
-                usleep(100000);
-
-                // Evaluar cuál lado tiene más espacio usando los sensores laterales
-                if (d_left > d_right) {
-                    motores_girar_izquierda(vel_giro);
-                } else {
-                    motores_girar_derecha(vel_giro);
-                }
-                usleep(600000); // Girar por 600ms
-                motores_detener();
-            } else {
-                // Camino libre: avanzar continuamente
-                motores_avanzar(vel_crucero);
-            }
-        }
-        
-        // Muestreo de sensores a 10Hz
-        usleep(100000); 
+        sleep(WATCHDOG_INTERVAL_SECS);
+        int sesiones = auth_active_sessions();
+        // printf("[watchdog] tick — sesiones activas: %d\n", sesiones);
+        if (sesiones == 0)
+            set_auto_mode("sin sesiones activas");
     }
     return NULL;
 }
@@ -284,35 +245,33 @@ int main(void) {
     printf("╚════════════════════════════════════╝\n\n");
 
     if (robot_state_init() < 0)  { fprintf(stderr, "[main] estado inicial fallo\n");  return 1; }
-    
-    // --- INICIALIZAR HARDWARE (Pines y Motores) ---
-    if (robot_hw_init() < 0) { 
-        fprintf(stderr, "[main] hardware init failed (Requiere ejecutar con sudo)\n"); 
-        robot_state_destroy(); 
-        return 1; 
+    if (lib_audio_init(NULL) < 0)  { fprintf(stderr, "[main] audio init failed\n"); robot_state_destroy(); return 1; }
+    if (auth_init()        < 0)  { fprintf(stderr, "[main] autorizacion inicial fallo\n");   robot_state_destroy(); return 1; }
+    if (lib_leds_init() < 0) { /* solo warning, no falla fatal */ } 
+
+    // Notificacion de encendido
+    lib_audio_notify(NOTIFY_STARTUP); 
+
+    // Iniciar en modo autonomo
+    {
+        RobotState *rs = robot_state_get();
+        if (rs) {
+            pthread_mutex_lock(&rs->lock);
+            rs->mode = MODE_AUTONOMOUS;
+            pthread_mutex_unlock(&rs->lock);
+        }
+        printf("[main] Modo inicial: AUTONOMO\n");
+        lib_audio_notify(NOTIFY_AUTONOMOUS);
     }
 
-    if (lib_audio_init(NULL) < 0)  { 
-        fprintf(stderr, "[main] audio init failed\n"); 
-        robot_hw_cleanup(); 
-        robot_state_destroy(); 
-        return 1; 
-    }
-    
-    if (auth_init() < 0)  { 
-        fprintf(stderr, "[main] autorizacion inicial fallo\n"); 
-        lib_audio_destroy(); 
-        robot_hw_cleanup(); 
-        robot_state_destroy(); 
-        return 1; 
-    }
-
+    lib_leds_sync_from_state();
     signal(SIGINT,  on_signal);
     signal(SIGTERM, on_signal);
 
-    // Hilo de tiempo de actividad
-    pthread_t tid;
-    pthread_create(&tid, NULL, uptime_thread, NULL);
+    // Inicializar Threads
+    pthread_t tid_uptime, tid_watchdog;
+    pthread_create(&tid_uptime,   NULL, uptime_thread,   NULL);
+    pthread_create(&tid_watchdog, NULL, watchdog_thread, NULL);
 
     // --- INICIAR HILO DE NAVEGACIÓN AUTÓNOMA ---
     pthread_t auto_tid;
@@ -348,14 +307,13 @@ int main(void) {
 
     // --- SECUENCIA DE APAGADO ---
     g_running = 0;
-    pthread_join(tid, NULL);
-    pthread_join(auto_tid, NULL); // Esperar a que el hilo autónomo termine
-    
+    pthread_join(tid_uptime,   NULL);
+    pthread_join(tid_watchdog, NULL);
     auth_destroy();
     lib_audio_destroy();
     robot_hw_cleanup(); // Detener motores y liberar pines GPIO
     robot_state_destroy();
-    
+    lib_leds_destroy();
     printf("[server] Close.\n");
     return 0;
 }

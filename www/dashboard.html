@@ -537,23 +537,28 @@ function drawEmptyMap() {
 }
 
 /* Funcionalidad modo de Operacion */
+function applyModeUI(mode) {
+    S.mode = mode;
+    document.getElementById('btn-auto').className   = 'mode-btn' + (mode === 'autonomous' ? ' act-auto'   : '');
+    document.getElementById('btn-manual').className = 'mode-btn' + (mode === 'manual'     ? ' act-manual' : '');
+    const dpad = document.getElementById('dpad');
+    const lbl  = document.getElementById('dpad-lbl');
+    if (mode === 'manual') {
+        dpad.classList.remove('locked');
+        lbl.textContent = 'MODO MANUAL — ACTIVO';
+        lbl.classList.add('on');
+    } else {
+        dpad.classList.add('locked');
+        lbl.textContent = 'MODO AUTÓNOMO — INACTIVO';
+        lbl.classList.remove('on');
+    }
+    document.getElementById('sb-mode').textContent = mode === 'autonomous' ? 'AUTÓNOMO' : 'MANUAL';
+}
+
+// Actualiza UI + notifica al servidor — solo cuando el usuario presiona un botón
 function setMode(mode) {
-  S.mode = mode;
-  document.getElementById('btn-auto').className   = 'mode-btn' + (mode === 'autonomous' ? ' act-auto'   : '');
-  document.getElementById('btn-manual').className = 'mode-btn' + (mode === 'manual'     ? ' act-manual' : '');
-  const dpad = document.getElementById('dpad');
-  const lbl  = document.getElementById('dpad-lbl');
-  if (mode === 'manual') {
-    dpad.classList.remove('locked');
-    lbl.textContent = 'MODO MANUAL — ACTIVO';
-    lbl.classList.add('on');
-  } else {
-    dpad.classList.add('locked');
-    lbl.textContent = 'MODO AUTÓNOMO — INACTIVO';
-    lbl.classList.remove('on');
-  }
-  document.getElementById('sb-mode').textContent = mode === 'autonomous' ? 'AUTÓNOMO' : 'MANUAL';
-  apiFetch('/api/mode', 'POST', { mode });
+    applyModeUI(mode);
+    apiFetch('/api/mode', 'POST', { mode });
 }
 
 /* Funcionalidad control de tipo D-PAD */
@@ -695,7 +700,7 @@ async function pollStatus() {
     dot.classList.remove('on'); lbl.textContent = 'OFFLINE'; msg.textContent = '⚠ Sin conexión'; S.connected = false; return;
   }
   if (!S.connected) { S.connected = true; dot.classList.add('on'); lbl.textContent = 'ONLINE'; msg.textContent = '● Sistema operativo'; }
-  if (data.mode && data.mode !== S.mode) setMode(data.mode);
+  if (data.mode && data.mode !== S.mode) applyModeUI(data.mode);
   if (data.leds)    updateLEDs(data.leds);
   if (data.sensors) updateSensors(data.sensors);
   if (data.uptime != null) {
@@ -758,7 +763,7 @@ function updateClock() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  setMode('autonomous');
+  applyModeUI('autonomous');
   updateClock();
   setInterval(updateClock, 1000);
   pollStatus();
