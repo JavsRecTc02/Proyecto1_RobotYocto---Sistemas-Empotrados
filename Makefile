@@ -15,7 +15,7 @@ OBJS    := $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/src/%.o, \
 
 CFLAGS  := -Wall -Wextra -O2 -g -I$(SRCDIR) -Ilib
 
-LDFLAGS := -lmicrohttpd -lpthread -lmpg123 -lasound
+LDFLAGS := -lmicrohttpd -lpthread -lmpg123 -lasound -lpigpio -lrt
 
 .PHONY: all clean run
 
@@ -38,4 +38,4 @@ clean:
 
 run: all
 	@mkdir -p audio
-	./$(TARGET)
+	sudo ./$(TARGET)

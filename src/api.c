@@ -1,14 +1,16 @@
-#include "api.h"
-#include "auth.h"
-#include "robot_state.h"
-#include "../lib/lib_audio.h"
-#include "../lib/lib_leds.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+
+#include "api.h"
+#include "auth.h"
+#include "robot_state.h"
+#include "../lib/lib_audio.h"
+#include "../lib/lib_leds.h"
+#include "robot_hardware.h"
+#include "motor_control.h"
 
 /* ═══════════════════════════════════════════════════════════
    Definicion de helpers internos
@@ -168,7 +170,6 @@ enum MHD_Result api_status(struct MHD_Connection *conn)
     RobotState *rs = robot_state_get();
     if (!rs) return send_json(conn, 500, "{\"error\":\"State unavailable\"}");
 
-
     /* Leer audio desde lib_audio — fuente de verdad real.
        rs->audio.volume no se actualiza en tiempo real. */
     int   real_volume   = lib_audio_get_volume();
@@ -227,8 +228,8 @@ enum MHD_Result api_status(struct MHD_Connection *conn)
 /* ═══════════════════════════════════════════════════════════
    Metodo POST para seleccion de modo en /api/mode 
 ═══════════════════════════════════════════════════════════ */
-enum MHD_Result api_set_mode(struct MHD_Connection *conn,
-                              const char *body, size_t len)
+enum MHD_Result api_set_mode(struct MHD_Connection *conn, 
+                            const char *body, size_t len)
 {
     (void)len;
     char mode_str[32] = {0};
@@ -295,7 +296,25 @@ enum MHD_Result api_move(struct MHD_Connection *conn,
 
     printf("[api] move -> direction='%s'  speed=%d%%\n", direction, speed);
 
-     // Llamar funcionalidad con la Biblioteca de los motores
+    // 1. Escalar la velocidad de la Web (0-100) al rango PWM del hardware (0-255)
+    int pwm_speed = (speed * 255) / 100;
+    if (pwm_speed > 255) pwm_speed = 255;
+    if (pwm_speed < 0)   pwm_speed = 0;
+
+    // 2. Ejecutar comando de hardware utilizando la biblioteca de motores
+    if (strcmp(direction, "forward") == 0 || strcmp(direction, "up") == 0) {
+        motores_avanzar(pwm_speed);
+    } else if (strcmp(direction, "backward") == 0 || strcmp(direction, "down") == 0) {
+        motores_retroceder(pwm_speed);
+    } else if (strcmp(direction, "left") == 0) {
+        motores_girar_izquierda(pwm_speed);
+    } else if (strcmp(direction, "right") == 0) {
+        motores_girar_derecha(pwm_speed);
+    } else if (strcmp(direction, "stop") == 0) {
+        motores_detener();
+    } else {
+        return send_json(conn, MHD_HTTP_BAD_REQUEST, "{\"error\":\"Direccion desconocida\"}");
+    }
 
     return send_json(conn, MHD_HTTP_OK, "{\"ok\":true}");
 }
@@ -303,7 +322,6 @@ enum MHD_Result api_move(struct MHD_Connection *conn,
 /* ═══════════════════════════════════════════════════════════
    Metodo GET para /api/audio/list
 ═══════════════════════════════════════════════════════════ */
-
 enum MHD_Result api_audio_list(struct MHD_Connection *conn)
 {
     LibAudioTrack tracks[LIB_AUDIO_TRACKS_MAX];
@@ -336,7 +354,6 @@ enum MHD_Result api_audio_list(struct MHD_Connection *conn)
    Metodo POST para /api/audio/control
    Controlar musica, pausa, play, siguiente, etc
 ═══════════════════════════════════════════════════════════ */
-
 enum MHD_Result api_audio_control(struct MHD_Connection *conn,
                                    const char *body, size_t len)
 {
@@ -347,32 +364,21 @@ enum MHD_Result api_audio_control(struct MHD_Connection *conn,
     json_int(body, "track_id", &track_id);
  
     if (strcmp(action, "play") == 0) {
-        // Funcionalidad de Play
         if (lib_audio_play(track_id) < 0)
-            return send_json(conn, MHD_HTTP_BAD_REQUEST,
-                             "{\"error\":\"Pista no encontrada\"}");
+            return send_json(conn, MHD_HTTP_BAD_REQUEST, "{\"error\":\"Pista no encontrada\"}");
         printf("[api] audio -> PLAY  track_id=%d\n", track_id);
- 
     } else if (strcmp(action, "pause") == 0) {
-        // Funcionalidad de pause
         lib_audio_pause();
         printf("[api] audio -> PAUSE\n");
- 
     } else if (strcmp(action, "resume") == 0) {
-        // Funcionalidad para continuar con el track
         lib_audio_resume();
         printf("[api] audio -> RESUME\n");
- 
     } else if (strcmp(action, "stop") == 0) {
-        // Funcionalidad para detener el audio
         lib_audio_stop();
         printf("[api] audio -> STOP\n");
- 
     } else {
-        return send_json(conn, MHD_HTTP_BAD_REQUEST,
-                         "{\"error\":\"Accion desconocida\"}");
+        return send_json(conn, MHD_HTTP_BAD_REQUEST, "{\"error\":\"Accion desconocida\"}");
     }
- 
     return send_json(conn, MHD_HTTP_OK, "{\"ok\":true}");
 }
 
@@ -384,17 +390,11 @@ enum MHD_Result api_audio_volume(struct MHD_Connection *conn,
                                   const char *body, size_t len)
 {
     (void)len;
-    // Volumen por defecto
     int vol = 50;
     json_int(body, "volume", &vol);
-    if (vol < 0) {
-        vol = 0;
-    }
-    if (vol > 100) {
-        vol = 100;
-    }
+    if (vol < 0) vol = 0;
+    if (vol > 100) vol = 100;
  
-    // Utilizar la funcion de la lib de audio
     lib_audio_set_volume(vol);
     printf("[api] audio -> VOLUME %d%%\n", vol);
  
