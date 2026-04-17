@@ -1,0 +1,17 @@
+[Unit]
+Description=Robot Vacuum HTTP Server
+After=sound.target network.target
+Wants=sound.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/robot-server
+WorkingDirectory=/opt/robot
+Restart=on-failure
+RestartSec=5
+SupplementaryGroups=audio
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
