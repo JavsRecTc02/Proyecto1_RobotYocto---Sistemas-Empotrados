@@ -4,8 +4,9 @@
 #include <stdint.h>
 
 // Configuracion
-#define LIB_AUDIO_DIR_DEFAULT   "./audio"   // directorio para guardar los tracks / audios
-#define LIB_AUDIO_ALSA_DEVICE   "default"                
+#define LIB_AUDIO_DIR_DEFAULT   "./audio"   // directorio para guardar los tracks / audios  
+#define LIB_AUDIO_ALSA_DEVICE   "hw:1,0"
+#define LIB_AUDIO_MIXER_CARD    "hw:1"            
 #define LIB_AUDIO_MIXER_CTRL    "PCM"    // "PCM" Rasp, "Master" PC
 #define LIB_AUDIO_TRACKS_MAX     64
 #define LIB_AUDIO_NAME_MAX       128

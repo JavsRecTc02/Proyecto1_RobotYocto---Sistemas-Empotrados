@@ -48,7 +48,7 @@ static struct {
     int              volume;          
 
     // PID del proceso de notificación activo
-    pid_t            notify_pid;
+    // pid_t            notify_pid;
 
     int              initialized;
 } g;
@@ -100,7 +100,9 @@ static void alsa_set_volume(int vol_pct)
 
     snd_mixer_t *handle = NULL;
     if (snd_mixer_open(&handle, 0) < 0) return;
-    if (snd_mixer_attach(handle, LIB_AUDIO_ALSA_DEVICE) < 0) {
+
+    // Apuntar a card 1: Headphones en rpi4
+    if (snd_mixer_attach(handle, LIB_AUDIO_MIXER_CARD) < 0) {
         snd_mixer_close(handle); return;
     }
     snd_mixer_selem_register(handle, NULL, NULL);
@@ -117,6 +119,11 @@ static void alsa_set_volume(int vol_pct)
         snd_mixer_selem_get_playback_volume_range(elem, &pmin, &pmax);
         long vol = pmin + (long)(((pmax - pmin) * vol_pct) / 100);
         snd_mixer_selem_set_playback_volume_all(elem, vol);
+        printf("[audio] Volumen card 1 '%s': %d%% (raw=%ld)\n",
+               LIB_AUDIO_MIXER_CTRL, vol_pct, vol);
+    } else {
+        fprintf(stderr, "[audio] Control '%s' no encontrado en hw:1\n",
+                LIB_AUDIO_MIXER_CTRL);
     }
 
     snd_mixer_close(handle);
@@ -329,10 +336,10 @@ int lib_audio_init(const char *audio_dir)
             audio_dir ? audio_dir : LIB_AUDIO_DIR_DEFAULT,
             sizeof(g.audio_dir) - 1);
 
-    g.volume     = 40;
+    g.volume     = 85;
     g.status     = LIB_AUDIO_STOPPED;
     g.current_id = -1;
-    g.notify_pid = -1;
+    // g.notify_pid = -1;
 
     mpg123_init();
 
@@ -367,10 +374,10 @@ void lib_audio_destroy(void)
     pthread_mutex_destroy(&g.lock);
     pthread_cond_destroy(&g.cond);
 
-    if (g.notify_pid > 0) {
-        kill(g.notify_pid, SIGTERM);
-        waitpid(g.notify_pid, NULL, WNOHANG);
-    }
+    //if (g.notify_pid > 0) {
+    //    kill(g.notify_pid, SIGTERM);
+    //    waitpid(g.notify_pid, NULL, WNOHANG);
+    // }
 
     mpg123_exit();
     g.initialized = 0;
@@ -550,7 +557,6 @@ float lib_audio_get_position(void)
 
 void lib_audio_notify(NotificationEvent event)
 {
-    // Sonidos de notificacion
     static const char *NAMES[] = {
         "notify_startup.mp3",
         "notify_autonomous.mp3",
@@ -564,43 +570,80 @@ void lib_audio_notify(NotificationEvent event)
     snprintf(filepath, sizeof(filepath), "%s/%s", g.audio_dir, NAMES[event]);
 
     if (access(filepath, F_OK) != 0) {
-        printf("[audio] Notificación '%s' no encontrada, omitiendo\n", NAMES[event]);
+        printf("[audio] Notificación '%s' no encontrada\n", NAMES[event]);
         return;
     }
 
-    // Pausar el track si se esta reproduciendo audio
+    printf("[audio] Notificación: %s\n", NAMES[event]);
+
+    // Pausar cancion si está sonando
     int was_playing = (g.status == LIB_AUDIO_PLAYING);
     if (was_playing) lib_audio_pause();
 
-    // Terminar notificaciones actuales
-    if (g.notify_pid > 0) {
-        kill(g.notify_pid, SIGTERM);
-        waitpid(g.notify_pid, NULL, WNOHANG);
-        g.notify_pid = -1;
-    }
-
-    // Estado proceso Servidor e thread de notificaciones
-    pid_t pid = fork();
-    if (pid == 0) {
-        // Proceso hijo
-        int devnull = open("/dev/null", O_WRONLY);
-        if (devnull >= 0) {
-            dup2(devnull, STDOUT_FILENO);
-            dup2(devnull, STDERR_FILENO);
-            close(devnull);
-        }
-        execlp("mpg123", "mpg123", "-q", filepath, (char *)NULL);
-        _exit(1); 
-    } else if (pid > 0) {
-        g.notify_pid = pid;
-        printf("[audio] Notificación: %s\n", NAMES[event]);
-
-        // Resumir el audio que se pauso para la notificacion
-        waitpid(pid, NULL, 0);
-        g.notify_pid = -1;
+    // Reproducir notificación directamente con mpg123 + ALSA
+    int err_code;
+    mpg123_handle *mh = mpg123_new(NULL, &err_code);
+    if (!mh) {
+        fprintf(stderr, "[audio] mpg123_new falló para notificación\n");
         if (was_playing) lib_audio_resume();
-
-    } else {
-        fprintf(stderr, "[audio] Audio fallido para notificación\n");
+        return;
     }
+
+    mpg123_param(mh, MPG123_QUIET, 1, 0);
+
+    if (mpg123_open(mh, filepath) != MPG123_OK) {
+        fprintf(stderr, "[audio] No se pudo abrir notificación '%s'\n", filepath);
+        mpg123_delete(mh);
+        if (was_playing) lib_audio_resume();
+        return;
+    }
+
+    long rate = 44100;
+    int channels = 2, encoding = MPG123_ENC_SIGNED_16;
+    mpg123_getformat(mh, &rate, &channels, &encoding);
+    mpg123_format_none(mh);
+    mpg123_format(mh, rate, channels, MPG123_ENC_SIGNED_16);
+
+    // Abrir ALSA directo a hw:1,0
+    snd_pcm_t *pcm = alsa_open(rate, channels);
+    if (!pcm) {
+        fprintf(stderr, "[audio] ALSA no disponible para notificación\n");
+        mpg123_close(mh);
+        mpg123_delete(mh);
+        if (was_playing) lib_audio_resume();
+        return;
+    }
+
+    // Reproducir hasta el final
+    unsigned char buf[8192];
+    size_t done;
+    int dec_err;
+
+    while (1) {
+        dec_err = mpg123_read(mh, buf, sizeof(buf), &done);
+        if (dec_err == MPG123_DONE || done == 0) break;
+        if (dec_err != MPG123_OK && dec_err != MPG123_NEW_FORMAT) break;
+
+        snd_pcm_uframes_t frames = snd_pcm_bytes_to_frames(pcm, (ssize_t)done);
+        unsigned char *ptr = buf;
+
+        while (frames > 0) {
+            snd_pcm_sframes_t wr = snd_pcm_writei(pcm, ptr, frames);
+            if (wr < 0) {
+                wr = snd_pcm_recover(pcm, (int)wr, 0);
+                if (wr < 0) break;
+                continue;
+            }
+            ptr    += snd_pcm_frames_to_bytes(pcm, (snd_pcm_uframes_t)wr);
+            frames -= (snd_pcm_uframes_t)wr;
+        }
+    }
+
+    snd_pcm_drain(pcm);
+    snd_pcm_close(pcm);
+    mpg123_close(mh);
+    mpg123_delete(mh);
+
+    // Reanudar cancion si estaba sonando
+    if (was_playing) lib_audio_resume();
 }

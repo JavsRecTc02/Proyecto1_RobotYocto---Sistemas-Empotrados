@@ -177,6 +177,14 @@ network={
 
 ```
 
+Una vez cambiados los credenciales, se debe hacer rebuild de la siguiente manera:
+
+```bash
+
+bitbake -c cleansstate wifi-config && bitbake robot-image
+
+```
+
 # Creacion de la imagen
 
 Antes de iniciar, se debe inicializar el entorno build, mediante el comando:
