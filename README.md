@@ -15,7 +15,7 @@ Repositorio dedicado al proyecto 1 del curso de Sistemas Empotrados IS2026
 - Scarthgap Release
 - `bmaptool` (para grabar la imagen en la microSD)
 
-### Layer necesarios para la imagen
+# Layer necesarios para la imagen
 
 Se debe tener bblayers asociados a la imagen, especialmente meta-raspberrypi y meta-openembedded para que todo el Wifi y el jack funcionen correctamente.
 
@@ -42,7 +42,7 @@ BBLAYERS ?= " \
 
 ```
 
-### Archivo local.conf
+# Archivo local.conf
 
 En el archivo de configuracion no es recomendable incluir modulos de kernel especificos, sino solo dependencias,licencias, configuraciones, parametros, etc. Como por ejemplo bibliotecas u otros servicios de inicializacion como systemd, archivo txt de audio, parametros habilitados y demas.
 
@@ -89,7 +89,7 @@ INHERIT += "rm_work"
 RM_WORK_EXCLUDE += "robot-image"
 
 ```
-### Receta robot-yocto.bb
+# Receta robot-yocto.bb
 
 En este archivo es importante tener en cuenta todas las bibliotecas que se utilizan en el servidor, ademas lo mas importante es agregar los kernel-modules especificos a la imagen, para esto se deben buscar los paquetes especificos dependiendo de la version de uso, para este caso la version 6.6.63-v8. Se puede hacer uso de los siguientes comandos para buscar los paquetes de interes:
 
@@ -158,7 +158,7 @@ IMAGE_ROOTFS_SIZE ?= "122880"
 IMAGE_ROOTFS_EXTRA_SPACE ?= "0"
 
 ```
-### Credenciales Wifi
+# Credenciales Wifi
 
 Se deben cambiar las credenciales del Wifi correspondiente, en el archivo /meta-robot/recipes-connectivity/wifi-config/files/wpa_supplicant-wlan0.conf
 
@@ -177,7 +177,7 @@ network={
 
 ```
 
-### Creacion de la imagen
+# Creacion de la imagen
 
 Antes de iniciar, se debe inicializar el entorno build, mediante el comando:
 
@@ -264,7 +264,7 @@ cat $ROOTFS/usr/lib/modules-load.d/brcmfmac-wcc.conf 2>/dev/null || echo "NO EXI
 
 ```
 
-### Flashear imagen a la tarjeta SD
+# Flashear imagen a la tarjeta SD
 
 Se debe ejecutar una serie de comandos, para esto es necesario tener instalada la herramienta de bmap-tools, la cual se puede instalar con el comando:
 
