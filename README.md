@@ -160,7 +160,7 @@ IMAGE_ROOTFS_EXTRA_SPACE ?= "0"
 ```
 # Credenciales Wifi
 
-Se deben cambiar las credenciales del Wifi correspondiente, en el archivo /meta-robot/recipes-connectivity/wifi-config/files/wpa_supplicant-wlan0.conf
+Se deben cambiar las credenciales del Wifi correspondiente, asi como el codigo de pais, en el archivo /meta-robot/recipes-connectivity/wifi-config/files/wpa_supplicant-wlan0.conf
 
 
 ```bash
@@ -231,9 +231,9 @@ ls -lh tmp/deploy/images/raspberrypi4-64/nombre_de_la_imagen.wic.bz2
 
 ```
 
-## Verifiacion Adicional
+## Verificacion Adicional
 
-Antes de flashear la imagen, es recomendable verificar que se encuentra listo todo lo necesario para que las funcionalidades principales funcionen, se recomienda ejecutar esta serie de comandos para validad cada seccion.
+Antes de flashear la imagen, es recomendable verificar que se encuentra listo todo lo necesario para las funcionalidades principales, se recomienda ejecutar esta serie de comandos para validad cada seccion.
 
 ```bash
 
@@ -266,7 +266,7 @@ cat $ROOTFS/usr/lib/modules-load.d/brcmfmac-wcc.conf 2>/dev/null || echo "NO EXI
 
 # Flashear imagen a la tarjeta SD
 
-Se debe ejecutar una serie de comandos, para esto es necesario tener instalada la herramienta de bmap-tools, la cual se puede instalar con el comando:
+Para flashear la imagen se debe ejecutar una serie de comandos, para esto es necesario tener instalada la herramienta de bmap-tools, la cual se puede instalar con el comando:
 
 
 ```bash
