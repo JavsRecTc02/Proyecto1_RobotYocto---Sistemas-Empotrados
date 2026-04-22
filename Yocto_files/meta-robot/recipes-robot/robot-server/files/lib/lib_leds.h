@@ -2,10 +2,10 @@
 #define LIB_LEDS_H
 
 // Pines GPIO BCM 
-#define LED_GPIO_POWER       17   /* GPIO 17 — Pin fisico 11 */
-#define LED_GPIO_AUTONOMOUS  27   /* GPIO 27 — Pin fisico 13 */
-#define LED_GPIO_MANUAL      22   /* GPIO 22 — Pin fisico 15 */
-#define LED_GPIO_OBSTACLE    23   /* GPIO 23 — Pin fisico 16 */
+#define LED_GPIO_POWER       16   /* GPIO 16 — Pin fisico  */
+#define LED_GPIO_AUTONOMOUS  20   /* GPIO 20 — Pin fisico  */
+#define LED_GPIO_MANUAL      21   /* GPIO 21 — Pin fisico  */
+#define LED_GPIO_OBSTACLE    26   /* GPIO 26 — Pin fisico  */
 
 // ID del LED
 typedef enum {
@@ -17,7 +17,7 @@ typedef enum {
 } LedId;
 
 // Inicializar la biblioteca y pines GPIO
-int  lib_leds_init(void);
+int lib_leds_init(int pi);
 
 // Enciende (state=1) o apaga (state=0) un LED por su ID
 void lib_leds_set(LedId led, int state);

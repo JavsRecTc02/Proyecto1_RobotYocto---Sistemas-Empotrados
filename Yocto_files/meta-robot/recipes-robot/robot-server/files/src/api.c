@@ -3,6 +3,8 @@
 #include "robot_state.h"
 #include "lib_audio.h"
 #include "lib_leds.h"
+#include "robot_hardware.h"
+#include "lib_motors.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -167,7 +169,6 @@ enum MHD_Result api_status(struct MHD_Connection *conn)
 {
     RobotState *rs = robot_state_get();
     if (!rs) return send_json(conn, 500, "{\"error\":\"State unavailable\"}");
-
 
     /* Leer audio desde lib_audio — fuente de verdad real.
        rs->audio.volume no se actualiza en tiempo real. */
