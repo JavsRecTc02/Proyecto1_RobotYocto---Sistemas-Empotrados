@@ -10,17 +10,23 @@ SRC_URI = "file://src/main.c        \
            file://src/sha256.h      \
            file://src/robot_state.c \
            file://src/robot_state.h \
+           file://src/robot_hardware.c \
+           file://src/robot_hardware.h \
            file://lib/lib_audio.c   \
            file://lib/lib_audio.h   \
            file://lib/lib_leds.c    \
            file://lib/lib_leds.h    \
+           file://lib/lib_motors.c  \
+           file://lib/lib_motors.h  \
+           file://lib/lib_sensors.c \
+           file://lib/lib_sensors.h \
            file://www               \
            file://audio             \
            file://robot-server.service "
 
 S = "${WORKDIR}"
 
-DEPENDS = "libmicrohttpd mpg123 alsa-lib"
+DEPENDS = "libmicrohttpd mpg123 alsa-lib pigpio"
 RDEPENDS:${PN} = "mpg123 alsa-utils alsa-lib"
 
 inherit systemd
@@ -34,13 +40,16 @@ do_compile() {
         ${S}/src/auth.c         \
         ${S}/src/sha256.c       \
         ${S}/src/robot_state.c  \
+        ${S}/src/robot_hardware.c  \
         ${S}/lib/lib_audio.c    \
         ${S}/lib/lib_leds.c     \
+        ${S}/lib/lib_motors.c   \
+        ${S}/lib/lib_sensors.c  \
         -I${S}/src              \
         -I${S}/lib              \
         -I${STAGING_INCDIR}     \
         -L${STAGING_LIBDIR}     \
-        -lmicrohttpd -lpthread -lmpg123 -lasound \
+        -lmicrohttpd -lpthread -lmpg123 -lasound -lpigpiod_if2 \
         ${LDFLAGS}              \
         -o robot-server
 }

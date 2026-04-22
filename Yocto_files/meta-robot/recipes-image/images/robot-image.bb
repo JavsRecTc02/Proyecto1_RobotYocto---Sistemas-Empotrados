@@ -8,6 +8,9 @@ IMAGE_INSTALL:append = " \
     mpg123                              \
     alsa-utils                          \
     alsa-config                         \
+    pigpio	                        \
+    libpigpio               		\
+    pigpio-bin-pigpiod      		\
     wpa-supplicant                      \
     wifi-config                         \
     wireless-regdb-static               \
@@ -26,5 +29,5 @@ IMAGE_INSTALL:append = " \
 
 IMAGE_FEATURES += "ssh-server-openssh"
 
-IMAGE_ROOTFS_SIZE ?= "122880"
+IMAGE_ROOTFS_SIZE ?= "204800"
 IMAGE_ROOTFS_EXTRA_SPACE ?= "0"
