@@ -13,11 +13,27 @@ Repositorio dedicado al proyecto 1 del curso de Sistemas Empotrados IS2026
 - Yocto Project
 - Poky
 - Scarthgap Release
+- Toolchain-SDK (ARM)
 - `bmaptool` (para grabar la imagen en la microSD)
 
 # Layer necesarios para la imagen
 
-Se debe tener bblayers asociados a la imagen, especialmente meta-raspberrypi y meta-openembedded para que todo el Wifi y el jack funcionen correctamente.
+Se debe tener bblayers asociados a la imagen, especialmente meta-raspberrypi y meta-openembedded para que todo el Wifi y el jack funcionen correctamente. Primeramente asegurarse de contar con los repositorios necesarios.
+
+```bash
+git clone -b scarthgap https://github.com/agherzan/meta-raspberrypi.git
+git clone -b scarthgap https://github.com/openembedded/meta-openembedded.git
+```
+A continuacion, se deben agregar los layer mediante:
+
+```bash
+bitbake-layers add-layer ../meta-raspberrypi
+bitbake-layers add-layer ../meta-openembedded/meta-oe
+bitbake-layers add-layer ../meta-openembedded/meta-python
+bitbake-layers add-layer ../meta-openembedded/meta-multimedia
+bitbake-layers add-layer ../meta-openembedded/meta-networking
+bitbake-layers add-layer ../meta-robot
+```
 
 ```bash
 
@@ -89,6 +105,9 @@ INHERIT += "rm_work"
 RM_WORK_EXCLUDE += "robot-image"
 
 ```
+
+### Creacion de Meta-robot
+
 # Receta robot-yocto.bb
 
 En este archivo es importante tener en cuenta todas las bibliotecas que se utilizan en el servidor, ademas lo mas importante es agregar los kernel-modules especificos a la imagen, para esto se deben buscar los paquetes especificos dependiendo de la version de uso, para este caso la version 6.6.63-v8. Se puede hacer uso de los siguientes comandos para buscar los paquetes de interes:
@@ -120,7 +139,7 @@ kernel-module-i2c-brcmstb-6.6.63-v8
 ```
 Esto se debe considerar para los distintos kernel-modules que se requieran en la imagen, se debe prestar atencion a la version correspondiente, ya que esta puede variar segun el caso.
 
-## Receta .bb
+## Receta robot-image.bb
 
 En esta receta se incluyeron bibliotecas y servicios como mpg123, ALSA, libmicrohttpd, wpa_supplicant, etc, y diferentes kernel-modules especificos con su respectiva version.
 
@@ -131,11 +150,15 @@ require recipes-core/images/core-image-minimal.bb
 SUMMARY = "Imagen Robot Vacuum para Raspberry Pi 4"
 
 IMAGE_INSTALL:append = " \
+    librobot               		\
     robot-server                        \
     libmicrohttpd                       \
     mpg123                              \
     alsa-utils                          \
     alsa-config                         \
+    pigpio	                        \
+    libpigpio               		\
+    pigpio-bin-pigpiod      		\
     wpa-supplicant                      \
     wifi-config                         \
     wireless-regdb-static               \
@@ -154,10 +177,98 @@ IMAGE_INSTALL:append = " \
 
 IMAGE_FEATURES += "ssh-server-openssh"
 
-IMAGE_ROOTFS_SIZE ?= "122880"
+IMAGE_ROOTFS_SIZE ?= "204800"
 IMAGE_ROOTFS_EXTRA_SPACE ?= "0"
 
 ```
+
+## Receta para la Biblioteca dinamica
+```bash
+SUMMARY = "Robot hardware shared library"
+LICENSE = "CLOSED"
+
+SRC_URI = "file://lib_audio.c   \
+           file://lib_audio.h   \
+           file://lib_leds.c    \
+           file://lib_leds.h    \
+           file://lib_motors.c  \
+           file://lib_motors.h  \
+           file://lib_sensors.c \
+           file://lib_sensors.h \
+           file://robot_state.h \
+           file://CMakeLists.txt"
+
+S = "${WORKDIR}"
+
+DEPENDS = "mpg123 alsa-lib pigpio"
+
+inherit cmake
+
+FILES:${PN}     = "${libdir}/librobot.so.1* "
+FILES:${PN}-dev = "${libdir}/librobot.so ${includedir}/robot/*.h"
+
+```
+
+## CMakeLists.txt (Biblioteca dinámica y servidor)
+
+Este ejemplo muestra la configuración de CMake para compilación cruzada usando el Toolchain-SDK (ARM) de la biblioteca dinámica.
+
+El CMake del servidor se encuentra en:
+`meta-robot/recipes-robot/robot-server/files/src/`
+
+```bash
+cmake_minimum_required(VERSION 3.16)
+project(robot VERSION 1.0 LANGUAGES C)
+
+# Buscar dependencias
+find_library(PIGPIOD_IF2_LIB pigpiod_if2 REQUIRED)
+find_library(ASOUND_LIB asound REQUIRED)
+find_library(MPG123_LIB mpg123 REQUIRED)
+
+find_path(PIGPIOD_INCLUDE pigpiod_if2.h)
+find_path(ALSA_INCLUDE alsa/asoundlib.h)
+find_path(MPG123_INCLUDE mpg123.h)
+
+# Crear biblioteca dinamica
+add_library(robot SHARED
+    lib_audio.c
+    lib_leds.c
+    lib_motors.c
+    lib_sensors.c
+)
+
+# Headers propios
+target_include_directories(robot PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${PIGPIOD_INCLUDE}
+    ${ALSA_INCLUDE}
+    ${MPG123_INCLUDE}
+)
+
+# Linking
+target_link_libraries(robot
+    ${PIGPIOD_IF2_LIB}
+    ${ASOUND_LIB}
+    ${MPG123_LIB}
+    pthread
+)
+
+# Version del .so
+set_target_properties(robot PROPERTIES
+    VERSION 1.0.0
+    SOVERSION 1
+    PUBLIC_HEADER "lib_audio.h;lib_leds.h;lib_motors.h;lib_sensors.h"
+)
+
+# Instalacion
+include(GNUInstallDirs)
+install(TARGETS robot
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/robot
+)
+```
+
 # Credenciales Wifi
 
 Se deben cambiar las credenciales del Wifi correspondiente, asi como el codigo de pais, en el archivo /meta-robot/recipes-connectivity/wifi-config/files/wpa_supplicant-wlan0.conf
@@ -272,6 +383,34 @@ cat $ROOTFS/usr/lib/modules-load.d/brcmfmac-wcc.conf 2>/dev/null || echo "NO EXI
 
 ```
 
+Verificar que la biblioteca dinamica librobot.so existe en la imagen
+```bash
+find tmp/deploy -name "librobot*" 2>/dev/null
+```
+
+Ver el manifest completo
+```bash
+grep -E "librobot|robot-server|pigpio" \
+    tmp/deploy/images/raspberrypi4-64/robot-image-raspberrypi4-64.rootfs.manifest
+```
+
+Obtener el log de compilación cruzada
+
+Para verificar la compilación cruzada, se puede inspeccionar el log generado durante el proceso de build.
+
+```bash
+# Log de compilación de librobot
+cat tmp/work/cortexa72-poky-linux/librobot/1.0/temp/log.do_compile
+
+# Log de compilación del servidor
+cat tmp/work/cortexa72-poky-linux/robot-server/1.0/temp/log.do_compile
+
+```
+
+En el log debería observarse el uso del compilador cruzado, por ejemplo:
+
+`aarch64-poky-linux-gcc ... -mcpu=cortex-a72 ... -o librobot.so`
+
 # Flashear imagen a la tarjeta SD
 
 Para flashear la imagen se debe ejecutar una serie de comandos, para esto es necesario tener instalada la herramienta de bmap-tools, la cual se puede instalar con el comando:
@@ -319,3 +458,30 @@ sudo eject /dev/sd_card_name
 ```
 
 Una vez completado este proceso, la tarjeta microSD puede insertarse en la Raspberry Pi 4 para iniciar con la imagen generada. Como consideración adicional, el sistema está configurado para iniciar sesión con el usuario root.
+
+## Verificación en la Raspberry Pi
+
+# Estado del servidor, lib, wpa_supplicant
+systemctl status robot-server
+systemctl status pigpiod
+systemctl status wpa_supplicant
+
+# Logs en tiempo real del servidor
+journalctl -u robot-server -f
+
+# Verificar biblioteca dinámica
+ls /usr/lib/librobot.so*
+
+# Verificar archivos del servidor
+ls /opt/robot/www/
+ls /opt/robot/audio/
+
+# Verificar que escucha en puerto 8080
+cat /proc/net/tcp6 | grep 1F90
+
+# Verificar WiFi | Observar IP
+ip a
+systemctl status wpa_supplicant@wlan0
+
+## Acceso al servidor
+http://<IP-de-la-RPi>:8080
