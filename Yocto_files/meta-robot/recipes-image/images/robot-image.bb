@@ -3,6 +3,7 @@ require recipes-core/images/core-image-minimal.bb
 SUMMARY = "Imagen Robot Vacuum para Raspberry Pi 4"
 
 IMAGE_INSTALL:append = " \
+    librobot               		\
     robot-server                        \
     libmicrohttpd                       \
     mpg123                              \

@@ -12,63 +12,29 @@ SRC_URI = "file://src/main.c        \
            file://src/robot_state.h \
            file://src/robot_hardware.c \
            file://src/robot_hardware.h \
-           file://lib/lib_audio.c   \
-           file://lib/lib_audio.h   \
-           file://lib/lib_leds.c    \
-           file://lib/lib_leds.h    \
-           file://lib/lib_motors.c  \
-           file://lib/lib_motors.h  \
-           file://lib/lib_sensors.c \
-           file://lib/lib_sensors.h \
+	   file://src/CMakeLists.txt \
            file://www               \
            file://audio             \
-           file://robot-server.service "
+           file://robot-server.service"
 
-S = "${WORKDIR}"
+S = "${WORKDIR}/src"
 
-DEPENDS = "libmicrohttpd mpg123 alsa-lib pigpio"
-RDEPENDS:${PN} = "mpg123 alsa-utils alsa-lib"
+DEPENDS = "libmicrohttpd librobot pigpio"
 
-inherit systemd
+inherit cmake systemd
+
 SYSTEMD_SERVICE:${PN} = "robot-server.service"
 SYSTEMD_AUTO_ENABLE = "enable"
 
-do_compile() {
-    ${CC} ${CFLAGS} \
-        ${S}/src/main.c         \
-        ${S}/src/api.c          \
-        ${S}/src/auth.c         \
-        ${S}/src/sha256.c       \
-        ${S}/src/robot_state.c  \
-        ${S}/src/robot_hardware.c  \
-        ${S}/lib/lib_audio.c    \
-        ${S}/lib/lib_leds.c     \
-        ${S}/lib/lib_motors.c   \
-        ${S}/lib/lib_sensors.c  \
-        -I${S}/src              \
-        -I${S}/lib              \
-        -I${STAGING_INCDIR}     \
-        -L${STAGING_LIBDIR}     \
-        -lmicrohttpd -lpthread -lmpg123 -lasound -lpigpiod_if2 \
-        ${LDFLAGS}              \
-        -o robot-server
-}
-
-do_install() {
-    install -d ${D}${bindir}
-    install -d ${D}/opt/robot/www
-    install -d ${D}/opt/robot/audio
-
-    install -m 0755 ${S}/robot-server ${D}${bindir}/robot-server
-
+do_install:append() {
     if [ -d ${WORKDIR}/www ]; then
+        install -d ${D}/opt/robot/www
         cp -r ${WORKDIR}/www/* ${D}/opt/robot/www/ || true
     fi
-
     if [ -d ${WORKDIR}/audio ]; then
+        install -d ${D}/opt/robot/audio
         cp -r ${WORKDIR}/audio/* ${D}/opt/robot/audio/ || true
     fi
-
     install -d ${D}${systemd_system_unitdir}
     install -m 0644 ${WORKDIR}/robot-server.service \
                     ${D}${systemd_system_unitdir}/robot-server.service
