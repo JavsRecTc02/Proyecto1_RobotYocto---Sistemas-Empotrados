@@ -459,29 +459,37 @@ sudo eject /dev/sd_card_name
 
 Una vez completado este proceso, la tarjeta microSD puede insertarse en la Raspberry Pi 4 para iniciar con la imagen generada. Como consideración adicional, el sistema está configurado para iniciar sesión con el usuario root.
 
-## Verificación en la Raspberry Pi
+# Verificación en la Raspberry Pi
 
-# Estado del servidor, lib, wpa_supplicant
+## Estado del servidor, lib, wpa_supplicant
+```bash
 systemctl status robot-server
 systemctl status pigpiod
 systemctl status wpa_supplicant
-
-# Logs en tiempo real del servidor
+```
+## Logs en tiempo real del servidor
+```bash
 journalctl -u robot-server -f
-
-# Verificar biblioteca dinámica
+```
+## Verificar biblioteca dinámica
+```bash
 ls /usr/lib/librobot.so*
-
-# Verificar archivos del servidor
+```
+## Verificar archivos del servidor
+```bash
 ls /opt/robot/www/
 ls /opt/robot/audio/
-
-# Verificar que escucha en puerto 8080
+```
+## Verificar que escucha en puerto 8080
+```bash
 cat /proc/net/tcp6 | grep 1F90
-
-# Verificar WiFi | Observar IP
+```
+## Verificar WiFi | Observar IP
+```bash
 ip a
 systemctl status wpa_supplicant@wlan0
-
+```
 ## Acceso al servidor
+```bash
 http://<IP-de-la-RPi>:8080
+```
