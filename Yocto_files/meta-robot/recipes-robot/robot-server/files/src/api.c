@@ -296,7 +296,25 @@ enum MHD_Result api_move(struct MHD_Connection *conn,
 
     printf("[api] move -> direction='%s'  speed=%d%%\n", direction, speed);
 
-     // Llamar funcionalidad con la Biblioteca de los motores
+    // 1. Escalar la velocidad de la Web (0-100) al rango PWM del hardware (0-255)
+    int pwm_speed = (speed * 255) / 100;
+    if (pwm_speed > 255) pwm_speed = 255;
+    if (pwm_speed < 0)   pwm_speed = 0;
+
+    // 2. Ejecutar comando de hardware utilizando la biblioteca de motores
+    if (strcmp(direction, "forward") == 0 || strcmp(direction, "up") == 0) {
+        motores_avanzar(pwm_speed);
+    } else if (strcmp(direction, "backward") == 0 || strcmp(direction, "down") == 0) {
+        motores_retroceder(pwm_speed);
+    } else if (strcmp(direction, "left") == 0) {
+        motores_girar_izquierda(pwm_speed);
+    } else if (strcmp(direction, "right") == 0) {
+        motores_girar_derecha(pwm_speed);
+    } else if (strcmp(direction, "stop") == 0) {
+        motores_detener();
+    } else {
+        return send_json(conn, MHD_HTTP_BAD_REQUEST, "{\"error\":\"Direccion desconocida\"}");
+    }
 
     return send_json(conn, MHD_HTTP_OK, "{\"ok\":true}");
 }

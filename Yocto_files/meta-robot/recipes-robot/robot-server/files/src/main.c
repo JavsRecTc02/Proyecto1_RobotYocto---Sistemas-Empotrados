@@ -262,6 +262,7 @@ static void *autonomous_thread(void *arg) {
     // Velocidades predefinidas (0-255 PWM) para el modo autónomo
     int vel_crucero = 100;
     int vel_giro = 150;
+    OperationMode modo_anterior = MODE_AUTONOMOUS;
 
     while (g_running) {
         RobotState *rs = robot_state_get();
@@ -300,6 +301,15 @@ static void *autonomous_thread(void *arg) {
             lib_audio_notify(NOTIFY_OBSTACLE);
         }
 
+        /* ── Detener motores inmediatamente al cambiar de modo ── */
+        if (modo_anterior != modo_actual) {
+            motores_detener();
+            printf("[auto] Cambio de modo: %s → %s, motores detenidos\n",
+                   modo_anterior == MODE_AUTONOMOUS ? "AUTO" : "MANUAL",
+                   modo_actual   == MODE_AUTONOMOUS ? "AUTO" : "MANUAL");
+            modo_anterior = modo_actual;
+        }
+
         // 5. LÓGICA REACTIVA (Solo si estamos en MODO AUTÓNOMO)
         if (modo_actual == MODE_AUTONOMOUS) {
             if (obstaculo) {
@@ -329,6 +339,8 @@ static void *autonomous_thread(void *arg) {
         // Muestreo de sensores a 10Hz
         usleep(100000); 
     }
+    
+    motores_detener();
     return NULL;
 }
 

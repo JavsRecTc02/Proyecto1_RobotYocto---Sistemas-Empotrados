@@ -576,15 +576,20 @@ void lib_audio_notify(NotificationEvent event)
 
     printf("[audio] Notificación: %s\n", NAMES[event]);
 
-    // Pausar cancion si está sonando
     int was_playing = (g.status == LIB_AUDIO_PLAYING);
     if (was_playing) lib_audio_pause();
 
-    // Reproducir notificación directamente con mpg123 + ALSA
+    // Guardar volumen actual y forzar al maximo para notificaciones
+    pthread_mutex_lock(&g.lock);
+    int vol_original = g.volume;
+    pthread_mutex_unlock(&g.lock);
+
+    alsa_set_volume(92);  // ← forzar volumen
+
     int err_code;
     mpg123_handle *mh = mpg123_new(NULL, &err_code);
     if (!mh) {
-        fprintf(stderr, "[audio] mpg123_new falló para notificación\n");
+        alsa_set_volume(vol_original);
         if (was_playing) lib_audio_resume();
         return;
     }
@@ -594,6 +599,7 @@ void lib_audio_notify(NotificationEvent event)
     if (mpg123_open(mh, filepath) != MPG123_OK) {
         fprintf(stderr, "[audio] No se pudo abrir notificación '%s'\n", filepath);
         mpg123_delete(mh);
+        alsa_set_volume(vol_original);
         if (was_playing) lib_audio_resume();
         return;
     }
@@ -604,17 +610,15 @@ void lib_audio_notify(NotificationEvent event)
     mpg123_format_none(mh);
     mpg123_format(mh, rate, channels, MPG123_ENC_SIGNED_16);
 
-    // Abrir ALSA directo a hw:1,0
     snd_pcm_t *pcm = alsa_open(rate, channels);
     if (!pcm) {
-        fprintf(stderr, "[audio] ALSA no disponible para notificación\n");
         mpg123_close(mh);
         mpg123_delete(mh);
+        alsa_set_volume(vol_original);
         if (was_playing) lib_audio_resume();
         return;
     }
 
-    // Reproducir hasta el final
     unsigned char buf[8192];
     size_t done;
     int dec_err;
@@ -644,6 +648,8 @@ void lib_audio_notify(NotificationEvent event)
     mpg123_close(mh);
     mpg123_delete(mh);
 
-    // Reanudar cancion si estaba sonando
+    // Restaurar volumen original
+    alsa_set_volume(vol_original);  // ← restaurar
+
     if (was_playing) lib_audio_resume();
 }
