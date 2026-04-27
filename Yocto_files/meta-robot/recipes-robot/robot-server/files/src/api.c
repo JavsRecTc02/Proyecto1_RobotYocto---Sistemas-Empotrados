@@ -176,10 +176,37 @@ enum MHD_Result api_status(struct MHD_Connection *conn)
     int   real_status   = (int)lib_audio_get_status();
     int   real_track_id = lib_audio_get_current_id();
     float real_position = lib_audio_get_position();
+    /* Construir grid JSON y calcular estadisticas */
+    char grid_json[MAP_ROWS * MAP_COLS * 3 + 128];
+    int gn = 0;
+    int visited = 0;
+    int obstacles = 0;
+    int r, c;
 
     pthread_mutex_lock(&rs->lock);
+    /* Serializar grilla */
+    gn += snprintf(grid_json + gn, sizeof(grid_json) - gn, "[");
 
-    char buf[1024];
+    for (r = 0; r < MAP_ROWS; r++) {
+        gn += snprintf(grid_json + gn, sizeof(grid_json) - gn, "[");
+        for (c = 0; c < MAP_COLS; c++) {
+            gn += snprintf(grid_json + gn, sizeof(grid_json) - gn,
+                        "%d%s", rs->map.grid[r][c],
+                        c < MAP_COLS - 1 ? "," : "");
+        }
+        gn += snprintf(grid_json + gn, sizeof(grid_json) - gn,
+                    "]%s", r < MAP_ROWS - 1 ? "," : "");
+    }
+    snprintf(grid_json + gn, sizeof(grid_json) - gn, "]");
+
+    /* Estadisticas */
+    for (r = 0; r < MAP_ROWS; r++)
+        for (c = 0; c < MAP_COLS; c++) {
+            if (rs->map.grid[r][c] == CELL_VISITED)  visited++;
+            if (rs->map.grid[r][c] == CELL_OBSTACLE) obstacles++;
+        }
+
+    char buf[8192];
     snprintf(buf, sizeof(buf),
         "{"
           "\"mode\":\"%s\","
@@ -205,7 +232,10 @@ enum MHD_Result api_status(struct MHD_Connection *conn)
           "\"map\":{"
             "\"robot_x\":%d,"
             "\"robot_y\":%d,"
-            "\"robot_heading\":%d"
+            "\"robot_heading\":%d,"
+            "\"visited\":%d,"
+            "\"obstacles\":%d,"
+            "\"grid\":%s"
           "}"
         "}",
         rs->mode == MODE_AUTONOMOUS ? "autonomous" : "manual",
@@ -218,7 +248,8 @@ enum MHD_Result api_status(struct MHD_Connection *conn)
         rs->leds.obstacle  ? "true" : "false",
         real_status, real_track_id,
         real_position, real_volume,
-        rs->map.robot_x, rs->map.robot_y, rs->map.robot_heading
+        rs->map.robot_x, rs->map.robot_y, rs->map.robot_heading,
+        visited, obstacles, grid_json
     );
 
     pthread_mutex_unlock(&rs->lock);

@@ -254,14 +254,88 @@ static void *watchdog_thread(void *arg) {
 }
 
 /* ══════════════════════════════════════════════════════════
+   Actualizar el mapa de posicion del Robot
+══════════════════════════════════════════════════════════ */
+
+/* Actualiza posicion y grilla segun movimiento y sensores */
+static void map_update(RobotState *rs, double d_front,
+                        double d_left, double d_right,
+                        int moving_forward)
+{
+    pthread_mutex_lock(&rs->lock);
+
+    int x = rs->map.robot_x;
+    int y = rs->map.robot_y;
+    int h = rs->map.robot_heading;
+
+    /* Marcar celda actual como visitada */
+    if (x >= 0 && x < MAP_COLS && y >= 0 && y < MAP_ROWS)
+        rs->map.grid[y][x] = CELL_VISITED;
+
+    /* Marcar obstaculos detectados por sensores */
+    /* Sensor frontal */
+    if (d_front > 0 && d_front < 20.0) {
+        int ox = x, oy = y;
+        if      (h == 0)   oy -= 1;  // Norte
+        else if (h == 90)  ox += 1;  // Este
+        else if (h == 180) oy += 1;  // Sur
+        else               ox -= 1;  // Oeste
+        if (ox >= 0 && ox < MAP_COLS && oy >= 0 && oy < MAP_ROWS)
+            rs->map.grid[oy][ox] = CELL_OBSTACLE;
+    }
+
+    /* Sensor izquierdo — 90 grados a la izquierda del heading */
+    if (d_left > 0 && d_left < 20.0) {
+        int lh = (h + 270) % 360;
+        int ox = x, oy = y;
+        if      (lh == 0)   oy -= 1;
+        else if (lh == 90)  ox += 1;
+        else if (lh == 180) oy += 1;
+        else                ox -= 1;
+        if (ox >= 0 && ox < MAP_COLS && oy >= 0 && oy < MAP_ROWS)
+            rs->map.grid[oy][ox] = CELL_OBSTACLE;
+    }
+
+    /* Sensor derecho — 90 grados a la derecha del heading */
+    if (d_right > 0 && d_right < 20.0) {
+        int rh = (h + 90) % 360;
+        int ox = x, oy = y;
+        if      (rh == 0)   oy -= 1;
+        else if (rh == 90)  ox += 1;
+        else if (rh == 180) oy += 1;
+        else                ox -= 1;
+        if (ox >= 0 && ox < MAP_COLS && oy >= 0 && oy < MAP_ROWS)
+            rs->map.grid[oy][ox] = CELL_OBSTACLE;
+    }
+
+    /* Avanzar posicion si el robot se mueve hacia adelante */
+    if (moving_forward) {
+        int nx = x, ny = y;
+        if      (h == 0)   ny -= 1;
+        else if (h == 90)  nx += 1;
+        else if (h == 180) ny += 1;
+        else               nx -= 1;
+
+        if (nx >= 0 && nx < MAP_COLS && ny >= 0 && ny < MAP_ROWS &&
+            rs->map.grid[ny][nx] != CELL_OBSTACLE) {
+            rs->map.robot_x = nx;
+            rs->map.robot_y = ny;
+        }
+    }
+
+    pthread_mutex_unlock(&rs->lock);
+}
+
+
+/* ══════════════════════════════════════════════════════════
    Hilo de Navegación Autónoma y Lectura de Sensores
 ══════════════════════════════════════════════════════════ */
 static void *autonomous_thread(void *arg) {
     (void)arg;
     
     // Velocidades predefinidas (0-255 PWM) para el modo autónomo
-    int vel_crucero = 100;
-    int vel_giro = 150;
+    int vel_crucero = 210;
+    int vel_giro = 200;
     OperationMode modo_anterior = MODE_AUTONOMOUS;
 
     while (g_running) {
@@ -310,6 +384,10 @@ static void *autonomous_thread(void *arg) {
             modo_anterior = modo_actual;
         }
 
+        //  Actualizar mapa solo en Autonomo
+        int moving_forward = (modo_actual == MODE_AUTONOMOUS && !obstaculo);
+        map_update(rs, d_front, d_left, d_right, moving_forward);
+
         // 5. LÓGICA REACTIVA (Solo si estamos en MODO AUTÓNOMO)
         if (modo_actual == MODE_AUTONOMOUS) {
             if (obstaculo) {
@@ -317,7 +395,7 @@ static void *autonomous_thread(void *arg) {
                 motores_detener();
                 usleep(200000); // Pausa 200ms
                 
-                motores_retroceder(120);
+                motores_retroceder(180);
                 usleep(500000); // Retroceder 500ms
                 motores_detener();
                 usleep(100000);
@@ -325,8 +403,15 @@ static void *autonomous_thread(void *arg) {
                 // Evaluar cuál lado tiene más espacio usando los sensores laterales
                 if (d_left > d_right) {
                     motores_girar_izquierda(vel_giro);
+                    /* Actualizar heading — giro izquierda = -90 grados */
+                    pthread_mutex_lock(&rs->lock);
+                    rs->map.robot_heading = (rs->map.robot_heading + 270) % 360;
+                    pthread_mutex_unlock(&rs->lock);
                 } else {
                     motores_girar_derecha(vel_giro);
+                    pthread_mutex_lock(&rs->lock);
+                    rs->map.robot_heading = (rs->map.robot_heading + 90) % 360;
+                    pthread_mutex_unlock(&rs->lock);    
                 }
                 usleep(600000); // Girar por 600ms
                 motores_detener();

@@ -36,6 +36,7 @@ int robot_state_init(void) {
     /// Funcionalida de tracklist de la biblioteca
 
     // Estado de la posicion del robot
+    memset(g_robot.map.grid, CELL_UNKNOWN, sizeof(g_robot.map.grid));
     g_robot.map.robot_x       = MAP_COLS / 2;
     g_robot.map.robot_y       = MAP_ROWS / 2;
     g_robot.map.robot_heading = 0;

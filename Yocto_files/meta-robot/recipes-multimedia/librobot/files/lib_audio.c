@@ -263,15 +263,55 @@ static void *playback_thread(void *arg)
             // Decodificar chunk
             dec_err = mpg123_read(mh, buf, sizeof(buf), &done);
 
+            //if (dec_err == MPG123_DONE || done == 0) {
+            //    pthread_mutex_lock(&g.lock);
+            //    g.status        = LIB_AUDIO_STOPPED;
+            //    g.current_id    = -1;
+            //    g.position_secs = 0.0f;
+            //    pthread_mutex_unlock(&g.lock);
+            //    printf("[audio] Fin de pista\n");
+            //    break;
+            //}
+
             if (dec_err == MPG123_DONE || done == 0) {
+                printf("[audio] Fin de pista id=%d\n", tid);
+
                 pthread_mutex_lock(&g.lock);
-                g.status        = LIB_AUDIO_STOPPED;
-                g.current_id    = -1;
-                g.position_secs = 0.0f;
+
+                /* Buscar indice actual en la lista */
+                int next_id = -1;
+                int i;
+                for (i = 0; i < g.track_count; i++) {
+                    if (g.tracks[i].id == tid) {
+                        /* Siguiente pista — si es la ultima vuelve a la primera */
+                        int next_idx = (i + 1) % g.track_count;
+                        next_id = g.tracks[next_idx].id;
+                        strncpy(g.cmd_filepath, g.tracks[next_idx].filepath,
+                                sizeof(g.cmd_filepath) - 1);
+                        g.cmd_filepath[sizeof(g.cmd_filepath) - 1] = '\0';
+                        break;
+                    }
+                }
+
+                if (next_id >= 0 && g.track_count > 1) {
+                    /* Encolar siguiente pista automaticamente */
+                    g.cmd_track_id  = next_id;
+                    g.cmd           = PCMD_PLAY;
+                    g.status        = LIB_AUDIO_STOPPED;
+                    g.current_id    = -1;
+                    g.position_secs = 0.0f;
+                    printf("[audio] Autoplay → siguiente id=%d\n", next_id);
+                } else {
+                    /* Una sola pista o lista vacia — detener */
+                    g.status        = LIB_AUDIO_STOPPED;
+                    g.current_id    = -1;
+                    g.position_secs = 0.0f;
+                }
+
                 pthread_mutex_unlock(&g.lock);
-                printf("[audio] Fin de pista\n");
                 break;
             }
+
             if (dec_err != MPG123_OK && dec_err != MPG123_NEW_FORMAT) {
                 fprintf(stderr, "[audio] Error de decodificación: %s\n",
                         mpg123_strerror(mh));

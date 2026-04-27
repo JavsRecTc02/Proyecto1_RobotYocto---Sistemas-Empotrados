@@ -11,12 +11,11 @@
 typedef enum { CELL_UNKNOWN = 0, CELL_VISITED = 1, CELL_OBSTACLE = 2 } CellState;
 
 typedef struct {
-    CellState grid[MAP_ROWS][MAP_COLS];
     int robot_x;
     int robot_y;
-    // Posiciones 0-90-180-270
-    int robot_heading; 
-} OccupancyMap;
+    int robot_heading;  // 0=Norte 90=Este 180=Sur 270=Oeste
+    uint8_t grid[MAP_ROWS][MAP_COLS];  // ← agregar grilla
+} MapState;
 
 // Modo de operacion
 typedef enum { MODE_AUTONOMOUS = 0, MODE_MANUAL = 1 } OperationMode;
@@ -64,7 +63,7 @@ typedef struct {
     ProximitySensors sensors;
     LedStates        leds;
     AudioState       audio;
-    OccupancyMap     map;
+    MapState     map;
     uint64_t         uptime_secs;
     pthread_mutex_t  lock;
 } RobotState;
