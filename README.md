@@ -6,33 +6,28 @@ El sistema integra múltiples subsistemas de hardware y software para crear una 
 ## Hardware Necesario
 
 ### Unidad de procesamiento
-1 × Raspberry Pi 4 Model B
-1 × Tarjeta microSD
-1 × Fuente de alimentación 5V (≥3A, recomendada para Raspberry Pi)
+-1 × Raspberry Pi 4 Model B
+-1 × Tarjeta microSD
+-1 × Fuente de alimentación 5V (≥3A, recomendada para Raspberry Pi)
 
 ### Sistema de audio
 
-1 × Amplificador de audio LM386
-1 × Bocina / Altavoz (4-8)Ω
-1 × Cable de audio Jack 3.5 mm
-Capacitores y resistencias para el amplificador:
-1 × 10 µF
-1 × 250 µF
-1 × 0.05 µF
-1 × 1.2 kΩ
-1 × 10 Ω
-1 × Potenciómetro de 10 kΩ
+-1 × Amplificador de audio LM386
+-1 × Bocina / Altavoz (4-8)Ω
+-1 × Cable de audio Jack 3.5 mm
+- Resistencias y Capacitores
+-1 × Potenciómetro de 10 kΩ
 
 A continuacion, se muestre el digrama del circuito de audio completo.
 
 ![Audio_circuit](docs/LM386_amp.jpeg)
 
 ### Sistema de motores
-2 × Motores DC
-1 × Driver de motores tipo puente H (ej. L298N o similar)
-Fuente de alimentación para motores (ej. 6V–12V dependiendo del motor)
-6 × Optoacopladores (para aislar la Raspberry del driver y otras cargas)
-Resistencias asociadas (1-2) kΩ
+- 2 × Motores DC
+- 1 × Driver de motores tipo puente H (ej. L298N o similar)
+- Fuente de alimentación para motores (ej. 6V–12V dependiendo del motor)
+- 6 × Optoacopladores (para aislar la Raspberry del driver y otras cargas)
+- Resistencias asociadas (1-2) kΩ
 
 A continuacion, se muestre el digrama del circuito de los motores con puente H completo.
 
@@ -40,28 +35,28 @@ A continuacion, se muestre el digrama del circuito de los motores con puente H c
 
 ### Otros componentes
 
-LEDs indicadores
-3 × Sensores ultrasónicos HC-SR04
-Cables Dupont (M-M, M-H)
+- LEDs indicadores
+- 3 × Sensores ultrasónicos HC-SR04
+- Cables Dupont (M-M, M-H)
 
 ## Software Necesario
 
 - Yocto Project
-  Poky
-  Scarthgap Release
-  Toolchain-SDK (ARM)
+  Poky  
+  Scarthgap Release  
+  Toolchain-SDK (ARM)  
 - Sistema Operativo
-  Imagen mínima de Linux generada con Yocto
-  Optimizada para recursos limitados
+  Imagen mínima de Linux generada con Yocto  
+  Optimizada para recursos limitados  
 -Software Embebido
-  Biblioteca dinámica en C (.so) para manejo de hardware (GPIO, PWM, audio)
-  Servidor web para control remoto
-  Procesos concurrentes (navegación + audio)
+  Biblioteca dinámica en C (.so) para manejo de hardware (GPIO, PWM, audio)  
+  Servidor web para control remoto  
+  Procesos concurrentes (navegación + audio)  
 -Comunicación
-  Interfaz web accesible vía red (WiFi)
-- `bmaptool` (para grabar la imagen en la microSD)
+  Interfaz web accesible vía red (WiFi)  
+- `bmaptool` (para grabar la imagen en la microSD)  
 
-# Layer necesarios para la imagen
+## Layer necesarios para la imagen
 
 Se debe tener bblayers asociados a la imagen, especialmente meta-raspberrypi y meta-openembedded para que todo el Wifi y el jack funcionen correctamente. Primeramente asegurarse de contar con los repositorios necesarios.
 
@@ -103,7 +98,7 @@ BBLAYERS ?= " \
 
 ```
 
-# Archivo local.conf
+## Archivo local.conf
 
 En el archivo de configuracion no es recomendable incluir modulos de kernel especificos, sino solo dependencias,licencias, configuraciones, parametros, etc. Como por ejemplo bibliotecas u otros servicios de inicializacion como systemd, archivo txt de audio, parametros habilitados y demas.
 
@@ -153,7 +148,7 @@ RM_WORK_EXCLUDE += "robot-image"
 
 ### Creacion de Meta-robot
 
-# Receta robot-yocto.bb
+## Receta robot-yocto.bb
 
 En este archivo es importante tener en cuenta todas las bibliotecas que se utilizan en el servidor, ademas lo mas importante es agregar los kernel-modules especificos a la imagen, para esto se deben buscar los paquetes especificos dependiendo de la version de uso, para este caso la version 6.6.63-v8. Se puede hacer uso de los siguientes comandos para buscar los paquetes de interes:
 
