@@ -6,17 +6,17 @@ El sistema integra múltiples subsistemas de hardware y software para crear una 
 ## Hardware Necesario
 
 ### Unidad de procesamiento
--1 × Raspberry Pi 4 Model B
--1 × Tarjeta microSD
--1 × Fuente de alimentación 5V (≥3A, recomendada para Raspberry Pi)
+- 1 × Raspberry Pi 4 Model B
+- 1 × Tarjeta microSD
+- 1 × Fuente de alimentación 5V (≥3A, recomendada para Raspberry Pi)
 
 ### Sistema de audio
 
--1 × Amplificador de audio LM386
--1 × Bocina / Altavoz (4-8)Ω
--1 × Cable de audio Jack 3.5 mm
+- 1 × Amplificador de audio LM386
+- 1 × Bocina / Altavoz (4-8)Ω
+- 1 × Cable de audio Jack 3.5 mm
 - Resistencias y Capacitores
--1 × Potenciómetro de 10 kΩ
+- 1 × Potenciómetro de 10 kΩ
 
 A continuacion, se muestre el digrama del circuito de audio completo.
 
