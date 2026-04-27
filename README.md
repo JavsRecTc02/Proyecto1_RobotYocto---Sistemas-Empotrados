@@ -1,19 +1,64 @@
 # Proyecto1_RobotYocto---Sistemas-Empotrados
-Repositorio dedicado al proyecto 1 del curso de Sistemas Empotrados IS2026
+Este repositorio contiene el desarrollo del Proyecto 1 del curso de Sistemas Empotrados (IS2026), el cual consiste en el diseño e implementación de un robot aspiradora autónomo basado en una Raspberry Pi 4 y un sistema operativo Linux mínimo construido con Yocto.
 
-### Hardware Necesario
+El sistema integra múltiples subsistemas de hardware y software para crear una plataforma embebida completa, capaz de operar tanto de forma autónoma como de forma manual mediante una aplicacion web. 
 
-- Raspberry Pi 4 Model B
-- Tarjeta microSD 
-- Cable de audio Jack 3.5 mm
+## Hardware Necesario
 
-### Software Necesario
+### Unidad de procesamiento
+1 × Raspberry Pi 4 Model B
+1 × Tarjeta microSD
+1 × Fuente de alimentación 5V (≥3A, recomendada para Raspberry Pi)
 
-- Sistema operativo host basado en Linux (recomendado Ubuntu)
+### Sistema de audio
+
+1 × Amplificador de audio LM386
+1 × Bocina / Altavoz (4-8)Ω
+1 × Cable de audio Jack 3.5 mm
+Capacitores y resistencias para el amplificador:
+1 × 10 µF
+1 × 250 µF
+1 × 0.05 µF
+1 × 1.2 kΩ
+1 × 10 Ω
+1 × Potenciómetro de 10 kΩ
+
+A continuacion, se muestre el digrama del circuito de audio completo.
+
+![Audio_circuit](docs/LM386_amp.jpeg)
+
+### Sistema de motores
+2 × Motores DC
+1 × Driver de motores tipo puente H (ej. L298N o similar)
+Fuente de alimentación para motores (ej. 6V–12V dependiendo del motor)
+6 × Optoacopladores (para aislar la Raspberry del driver y otras cargas)
+Resistencias asociadas (1-2) kΩ
+
+A continuacion, se muestre el digrama del circuito de los motores con puente H completo.
+
+![Audio_circuit](docs/Circuit_diagram.jpeg)
+
+### Otros componentes
+
+LEDs indicadores
+3 × Sensores ultrasónicos HC-SR04
+Cables Dupont (M-M, M-H)
+
+## Software Necesario
+
 - Yocto Project
-- Poky
-- Scarthgap Release
-- Toolchain-SDK (ARM)
+  Poky
+  Scarthgap Release
+  Toolchain-SDK (ARM)
+- Sistema Operativo
+  Imagen mínima de Linux generada con Yocto
+  Optimizada para recursos limitados
+-Software Embebido
+  Biblioteca dinámica en C (.so) para manejo de hardware (GPIO, PWM, audio)
+  Servidor web para control remoto
+  Procesos concurrentes (navegación + audio)
+-Comunicación
+  Interfaz web accesible vía red (WiFi)
 - `bmaptool` (para grabar la imagen en la microSD)
 
 # Layer necesarios para la imagen
@@ -493,3 +538,4 @@ systemctl status wpa_supplicant@wlan0
 ```bash
 http://<IP-de-la-RPi>:8080
 ```
+
