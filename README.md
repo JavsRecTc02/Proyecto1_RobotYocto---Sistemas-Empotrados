@@ -35,6 +35,10 @@ A continuacion, se muestre el digrama del circuito de los motores con puente H c
 
 ![Audio_circuit](docs/Circuit_diagram.jpeg)
 
+A continuacion, se muestra el diagrama de arquitectura de hardware
+
+![HW_circuit](docs/DiagramaArquitectura.jpeg)
+
 ### Otros componentes
 
 - LEDs indicadores
