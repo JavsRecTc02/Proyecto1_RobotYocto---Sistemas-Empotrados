@@ -3,6 +3,8 @@ Este repositorio contiene el desarrollo del Proyecto 1 del curso de Sistemas Emp
 
 El sistema integra múltiples subsistemas de hardware y software para crear una plataforma embebida completa, capaz de operar tanto de forma autónoma como de forma manual mediante una aplicacion web. 
 
+![Robot](docs/robot_Yocto.gif)
+
 ## Hardware Necesario
 
 ### Unidad de procesamiento
