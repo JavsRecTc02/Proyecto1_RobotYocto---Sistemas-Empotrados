@@ -3,6 +3,24 @@ Este repositorio contiene el desarrollo del Proyecto 1 del curso de Sistemas Emp
 
 El sistema integra múltiples subsistemas de hardware y software para crear una plataforma embebida completa, capaz de operar tanto de forma autónoma como de forma manual mediante una aplicacion web. 
 
+---
+
+## Integrantes
+
+|-----------|--------------------------------------|
+| Estudiante | Javier Tenorio Cervantes            |
+| Carné      | 2020065308                          |
+| Estudiante | Axel Flores Lara                    |
+| Carné      | 2021453573                          |
+| Estudiante | Julio Varela Venegas                |
+| Carné      | 2019008041                          |
+| Estudiante | Kendall Marin Muñoz                 |
+| Carné      | 2021158843                          |
+| Profesor   | Dr.-Ing. Jeferson González G.       |
+| Fecha      | I-S 2026                            |
+
+---
+
 ![Robot](docs/robot_Yocto.gif)
 
 ## Hardware Necesario
@@ -45,6 +63,8 @@ A continuacion, se muestra el diagrama de arquitectura de hardware
 - 3 × Sensores ultrasónicos HC-SR04
 - Cables Dupont (M-M, M-H)
 
+---
+
 ## Software Necesario
 
 - Yocto Project
@@ -60,7 +80,13 @@ A continuacion, se muestra el diagrama de arquitectura de hardware
   Procesos concurrentes (navegación + audio)  
 -Comunicación
   Interfaz web accesible vía red (WiFi)  
-- `bmaptool` (para grabar la imagen en la microSD)  
+- `bmaptool` (para grabar la imagen en la microSD)
+
+A continuacion, se muestra el diagrama de arquitectura de software del sistema.
+
+![SW_circuit](docs/Diagrama_software.jpeg) 
+
+---
 
 ## Layer necesarios para la imagen
 
@@ -103,6 +129,8 @@ BBLAYERS ?= " \
   "
 
 ```
+
+---
 
 ## Archivo local.conf
 
@@ -152,7 +180,9 @@ RM_WORK_EXCLUDE += "robot-image"
 
 ```
 
-### Creacion de Meta-robot
+---
+
+# Creacion de Meta-robot
 
 ## Receta robot-yocto.bb
 
@@ -184,6 +214,8 @@ kernel-module-i2c-brcmstb-6.6.63-v8
 
 ```
 Esto se debe considerar para los distintos kernel-modules que se requieran en la imagen, se debe prestar atencion a la version correspondiente, ya que esta puede variar segun el caso.
+
+---
 
 ## Receta robot-image.bb
 
@@ -228,6 +260,8 @@ IMAGE_ROOTFS_EXTRA_SPACE ?= "0"
 
 ```
 
+---
+
 ## Receta para la Biblioteca dinamica
 ```bash
 SUMMARY = "Robot hardware shared library"
@@ -254,6 +288,8 @@ FILES:${PN}     = "${libdir}/librobot.so.1* "
 FILES:${PN}-dev = "${libdir}/librobot.so ${includedir}/robot/*.h"
 
 ```
+
+---
 
 ## CMakeLists.txt (Biblioteca dinámica y servidor)
 
@@ -314,6 +350,8 @@ install(TARGETS robot
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/robot
 )
 ```
+
+---
 
 # Credenciales Wifi
 
@@ -457,6 +495,8 @@ En el log debería observarse el uso del compilador cruzado, por ejemplo:
 
 `aarch64-poky-linux-gcc ... -mcpu=cortex-a72 ... -o librobot.so`
 
+---
+
 # Flashear imagen a la tarjeta SD
 
 Para flashear la imagen se debe ejecutar una serie de comandos, para esto es necesario tener instalada la herramienta de bmap-tools, la cual se puede instalar con el comando:
@@ -505,6 +545,8 @@ sudo eject /dev/sd_card_name
 
 Una vez completado este proceso, la tarjeta microSD puede insertarse en la Raspberry Pi 4 para iniciar con la imagen generada. Como consideración adicional, el sistema está configurado para iniciar sesión con el usuario root.
 
+---
+
 # Verificación en la Raspberry Pi
 
 ## Estado del servidor, lib, wpa_supplicant
@@ -539,4 +581,104 @@ systemctl status wpa_supplicant@wlan0
 ```bash
 http://<IP-de-la-RPi>:8080
 ```
+---
+
+# Referencia API — librobot.so
+
+---
+
+## lib_audio
+
+### Tipos
+
+| Tipo | Valores |
+|---|---|
+| `LibAudioStatus` | `STOPPED=0`, `PLAYING=1`, `PAUSED=2` |
+| `NotificationEvent` | `NOTIFY_STARTUP=0`, `NOTIFY_AUTONOMOUS=1`, `NOTIFY_OBSTACLE=2`, `NOTIFY_MANUAL=3` |
+| `LibAudioTrack` | `{ int id, char filename[128], char filepath[640], int duration_secs }` |
+
+### Funciones
+
+| Función | Parámetros | Retorno | Descripción |
+|---|---|---|---|
+| `lib_audio_init(dir)` | `const char *audio_dir` | `int` 0 ok / -1 error | Inicializa ALSA y escanea el directorio. `NULL` usa el directorio por defecto. |
+| `lib_audio_destroy()` | — | `void` | Detiene reproducción y libera recursos ALSA. |
+| `lib_audio_scan()` | — | `int` cantidad de pistas | Reescanea el directorio y actualiza la lista en memoria. |
+| `lib_audio_get_tracks(out, max)` | `LibAudioTrack *out`, `int max` | `int` pistas copiadas | Copia hasta `max` pistas al arreglo `out`. |
+| `lib_audio_play(track_id)` | `int track_id` | `int` 0 ok / -1 error | Reproduce la pista con el ID dado. Detiene cualquier reproducción activa. |
+| `lib_audio_pause()` | — | `void` | Pausa la reproducción actual. |
+| `lib_audio_resume()` | — | `void` | Continúa desde la posición pausada. |
+| `lib_audio_stop()` | — | `void` | Detiene y rebobina la pista actual. |
+| `lib_audio_set_volume(vol)` | `int vol` (0–100) | `void` | Ajusta el volumen del mezclador ALSA. |
+| `lib_audio_get_volume()` | — | `int` (0–100) | Devuelve el volumen actual leído desde el hardware. |
+| `lib_audio_get_status()` | — | `LibAudioStatus` | Estado en tiempo real: `STOPPED`, `PLAYING` o `PAUSED`. |
+| `lib_audio_get_current_id()` | — | `int` track_id | ID de la pista activa. `-1` si no hay ninguna. |
+| `lib_audio_get_position()` | — | `float` segundos | Posición de reproducción en segundos desde el inicio. |
+| `lib_audio_notify(event)` | `NotificationEvent event` | `void` | Reproduce el clip de notificación del evento indicado. |
+
+---
+
+## lib_leds
+
+### Tipos
+
+| Tipo | Valores |
+|---|---|
+| `LedId` | `LED_POWER=0`, `LED_AUTONOMOUS=1`, `LED_MANUAL=2`, `LED_OBSTACLE=3`, `LED_COUNT=4` |
+
+### Funciones
+
+| Función | Parámetros | Retorno | Descripción |
+|---|---|---|---|
+| `lib_leds_init(pi)` | `int pi` (handle pigpio) | `int` 0 ok / -1 error | Inicializa los cuatro pines GPIO como salida digital. |
+| `lib_leds_set(led, state)` | `LedId led`, `int state` | `void` | Enciende (`state=1`) o apaga (`state=0`) el LED indicado. |
+| `lib_leds_get(led)` | `LedId led` | `int` 1/0 | Lee el estado actual del LED desde el estado interno. |
+| `lib_leds_destroy()` | — | `void` | Apaga todos los LEDs y libera los pines GPIO. |
+| `lib_leds_sync_from_state()` | — | `void` | Aplica el estado de `RobotState` a los LEDs físicos. |
+
+---
+
+## lib_motors
+
+### Referencia de velocidades PWM
+
+| PWM | % aprox. | Uso |
+|---|---|---|
+| `0` | 0 % | Motor detenido |
+| `90` | 35 % | Velocidad de crucero autónomo |
+| `150` | 59 % | Velocidad de giro |
+| `180` | 71 % | Retroceso en maniobra ante obstaculo |
+| `255` | 100 % | Máximo |
+
+
+### Funciones
+
+| Función | Parámetros | Retorno | Descripción |
+|---|---|---|---|
+| `motores_init(pi)` | `int pi` (handle pigpio) | `void` | Configura los pines del L298N como salidas PWM. |
+| `motores_detener()` | — | `void` | Detiene ambos motores apagando PWM y pines de dirección. |
+| `motores_avanzar(velocidad)` | `int velocidad` (0–255) | `void` | Ambos motores hacia adelante. |
+| `motores_retroceder(velocidad)` | `int velocidad` (0–255) | `void` | Ambos motores en reversa. |
+| `motores_girar_izquierda(vel)` | `int velocidad` (0–255) | `void` | Motor derecho avanza, motor izquierdo retrocede. |
+| `motores_girar_derecha(vel)` | `int velocidad` (0–255) | `void` | Motor izquierdo avanza, motor derecho retrocede. |
+
+---
+
+## lib_sensors
+
+### Funciones
+
+| Función | Parámetros | Retorno | Descripción |
+|---|---|---|---|
+| `sensor_init(pi, sensor, trigger, echo)` | `int pi`, `SensorUltrasonico *sensor`, `int trigger`, `int echo` | `void` | Configura los pines trigger (salida) y echo (entrada) en pigpio. |
+| `sensor_leer_distancia(sensor)` | `SensorUltrasonico *sensor` | `double` cm / `-1.0` error | Envía pulso de 10 µs y mide el tiempo de retorno. Devuelve distancia en cm o `-1.0` en timeout. |
+
+---
+
+## Información Adicional
+
+Desarrollado como proyecto del curso de Sistemas empotrados en el **Instituto Tecnológico de Costa Rica** — Escuela de Ingeniería en Computadores (CE).
+— I Semestre 2026
+
+---
 
