@@ -7,17 +7,18 @@ El sistema integra múltiples subsistemas de hardware y software para crear una 
 
 ## Integrantes
 
-|-----------|--------------------------------------|
-| Estudiante | Javier Tenorio Cervantes            |
-| Carné      | 2020065308                          |
-| Estudiante | Axel Flores Lara                    |
-| Carné      | 2021453573                          |
-| Estudiante | Julio Varela Venegas                |
-| Carné      | 2019008041                          |
-| Estudiante | Kendall Marin Muñoz                 |
-| Carné      | 2021158843                          |
-| Profesor   | Dr.-Ing. Jeferson González G.       |
-| Fecha      | I-S 2026                            |
+| Rol        | Detalle                        |
+|------------|--------------------------------|
+| Estudiante | Javier Tenorio Cervantes       |
+| Carné      | 2020065308                     |
+| Estudiante | Axel Flores Lara               |
+| Carné      | 2021453573                     |
+| Estudiante | Julio Varela Venegas           |
+| Carné      | 2019008041                     |
+| Estudiante | Kendall Marin Muñoz            |
+| Carné      | 2021158843                     |
+| Profesor   | Dr.-Ing. Jeferson González G.  |
+| Fecha      | I-S 2026                       |
 
 ---
 
