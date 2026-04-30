@@ -1,0 +1,18 @@
+[Unit]
+Description=Robot Vacuum HTTP Server
+After=network.target sound.target pigpiod.service
+Wants=sound.target
+Requires=pigpiod.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/robot-server
+WorkingDirectory=/opt/robot
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

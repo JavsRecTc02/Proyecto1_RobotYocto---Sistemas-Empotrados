@@ -1,0 +1,11 @@
+[Unit]
+Description=pigpio GPIO daemon
+Before=robot-server.service
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/pigpiod
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
