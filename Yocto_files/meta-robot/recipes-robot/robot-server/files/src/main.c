@@ -371,6 +371,7 @@ static void *autonomous_thread(void *arg) {
 
         // 4. Actualizar el LED físico usando la librería lib_leds (solo si cambió)
         if (prev_obstaculo != obstaculo) {
+            motores_detener();
             lib_leds_set(LED_OBSTACLE, obstaculo);
             lib_audio_notify(NOTIFY_OBSTACLE);
         }
@@ -392,9 +393,6 @@ static void *autonomous_thread(void *arg) {
         if (modo_actual == MODE_AUTONOMOUS) {
             if (obstaculo) {
                 // Rutina de evasión
-                motores_detener();
-                usleep(200000); // Pausa 200ms
-                
                 motores_retroceder(180);
                 usleep(500000); // Retroceder 500ms
                 motores_detener();
