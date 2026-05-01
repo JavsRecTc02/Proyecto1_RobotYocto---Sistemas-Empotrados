@@ -39,9 +39,12 @@ El sistema integra múltiples subsistemas de hardware y software para crear una 
 - Resistencias y Capacitores
 - 1 × Potenciómetro de 10 kΩ
 
-A continuacion, se muestre el digrama del circuito de audio completo.
+A continuacion, se muestra tanto el diagrama del circuito del audio, como su resultado en la placa perforada.
 
-![Audio_circuit](docs/LM386_amp.jpeg)
+| Diagrama Original | Circuito en placa perforada |
+|:-:|:-:|
+| ![Audio_circuit1](docs/LM386_amp.jpeg)| ![Audio_circuit2](docs/audio_perf.jpeg) |
+
 
 ### Sistema de motores
 - 2 × Motores DC
@@ -50,9 +53,12 @@ A continuacion, se muestre el digrama del circuito de audio completo.
 - 6 × Optoacopladores (para aislar la Raspberry del driver y otras cargas)
 - Resistencias asociadas (1-2) kΩ
 
-A continuacion, se muestre el digrama del circuito de los motores con puente H completo.
+A continuacion, se muestre el diagrama del circuito de los motores con puente H completo, asi como su equivalente en la placa perforada.
 
-![Audio_circuit](docs/Circuit_diagram.jpeg)
+
+| Diagrama Original | Circuito en placa perforada |
+|:-:|:-:|
+| ![Audio_circuit](docs/Circuit_diagram.jpeg)| ![Circuit_perf](docs/opto_perf.jpeg) |
 
 A continuacion, se muestra el diagrama de arquitectura de hardware
 
@@ -75,11 +81,11 @@ A continuacion, se muestra el diagrama de arquitectura de hardware
 - Sistema Operativo
   Imagen mínima de Linux generada con Yocto  
   Optimizada para recursos limitados  
--Software Embebido
+- Software Embebido
   Biblioteca dinámica en C (.so) para manejo de hardware (GPIO, PWM, audio)  
   Servidor web para control remoto  
   Procesos concurrentes (navegación + audio)  
--Comunicación
+- Comunicación
   Interfaz web accesible vía red (WiFi)  
 - `bmaptool` (para grabar la imagen en la microSD)
 
