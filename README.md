@@ -39,7 +39,10 @@ El sistema integra múltiples subsistemas de hardware y software para crear una 
 - Resistencias y Capacitores
 - 1 × Potenciómetro de 10 kΩ
 
-A continuacion, se muestra tanto el diagrama del circuito del audio, como su resultado en la placa perforada.
+El sistema de audio recibe la señal analógica desde el jack de 3.5 mm de la Raspberry Pi 4, la cual es generada por el subsistema de audio del kernel ALSA.
+Esta señal es amplificada mediante el circuito basado en el LM386, un amplificador de audio de baja potencia diseñado para aplicaciones embebidas. El potenciómetro de 10 kΩ actúa como control de ganancia de entrada, permitiendo regular el nivel de la señal antes de la amplificación. Los capacitores de desacoplo eliminan el ruido de alta frecuencia y el offset DC, garantizando una señal limpia hacia el altavoz.
+
+A continuación se muestra tanto el diagrama del circuito del audio como su resultado en la placa perforada.
 
 | Diagrama Original | Circuito en placa perforada |
 |:-:|:-:|
@@ -53,7 +56,11 @@ A continuacion, se muestra tanto el diagrama del circuito del audio, como su res
 - 6 × Optoacopladores (para aislar la Raspberry del driver y otras cargas)
 - Resistencias asociadas (1-2) kΩ
 
-A continuacion, se muestre el diagrama del circuito de los motores con puente H completo, asi como su equivalente en la placa perforada.
+El sistema de motores permite el desplazamiento del robot en todas las direcciones: avance, retroceso, giro izquierda y giro derecha. El driver L298N implementa un puente H doble que controla de forma independiente dos motores DC, uno por cada lado del chasis, donde la velocidad de cada motor se regula mediante señales PWM generadas por la Raspberry Pi 4. La dirección de giro se determina combinando los pines de control IN1/IN2 para el motor izquierdo e IN3/IN4 para el motor derecho.
+
+Los seis optoacopladores cumplen una función de protección crítica, ya que aíslan eléctricamente la Raspberry Pi 4 del driver de motores y de la fuente de alimentación de mayor voltaje. Esto evita que picos de corriente, ruido eléctrico o cortocircuitos en el lado de potencia dañen la lógica de la Raspberry Pi, que opera a 3.3V. Cada señal de control (ENA, IN1, IN2, ENB, IN3, IN4) pasa por un optoacoplador antes de llegar al L298N, garantizando aislamiento galvánico completo entre ambos dominios de voltaje. El control de los motores es gestionado completamente desde software a través de la biblioteca dinámica.
+
+A continuación se muestra el diagrama del circuito de los motores con puente H completo, así como su equivalente en la placa perforada.
 
 
 | Diagrama Original | Circuito en placa perforada |
