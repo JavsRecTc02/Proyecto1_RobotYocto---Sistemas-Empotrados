@@ -39,6 +39,8 @@ El sistema integra múltiples subsistemas de hardware y software para crear una 
 - Resistencias y Capacitores
 - 1 × Potenciómetro de 10 kΩ
 
+---
+
 El sistema de audio recibe la señal analógica desde el jack de 3.5 mm de la Raspberry Pi 4, la cual es generada por el subsistema de audio del kernel ALSA.
 Esta señal es amplificada mediante el circuito basado en el LM386, un amplificador de audio de baja potencia diseñado para aplicaciones embebidas. El potenciómetro de 10 kΩ actúa como control de ganancia de entrada, permitiendo regular el nivel de la señal antes de la amplificación. Los capacitores de desacoplo eliminan el ruido de alta frecuencia y el offset DC, garantizando una señal limpia hacia el altavoz.
 
@@ -55,6 +57,8 @@ A continuación se muestra tanto el diagrama del circuito del audio como su resu
 - Fuente de alimentación para motores (ej. 6V–12V dependiendo del motor)
 - 6 × Optoacopladores (para aislar la Raspberry del driver y otras cargas)
 - Resistencias asociadas (1-2) kΩ
+
+---
 
 El sistema de motores permite el desplazamiento del robot en todas las direcciones: avance, retroceso, giro izquierda y giro derecha. El driver L298N implementa un puente H doble que controla de forma independiente dos motores DC, uno por cada lado del chasis, donde la velocidad de cada motor se regula mediante señales PWM generadas por la Raspberry Pi 4. La dirección de giro se determina combinando los pines de control IN1/IN2 para el motor izquierdo e IN3/IN4 para el motor derecho.
 
@@ -95,6 +99,10 @@ A continuacion, se muestra el diagrama de arquitectura de hardware
 - Comunicación
   Interfaz web accesible vía red (WiFi)  
 - `bmaptool` (para grabar la imagen en la microSD)
+
+---
+
+El sistema se organiza en cuatro capas verticales. En la capa superior, la imagen Yocto generada por el layer meta-robot contiene todas las recetas BitBake necesarias para construir el sistema operativo mínimo, incluyendo configuración de WiFi, ALSA, pigpio y los layers de dependencias. Sobre esta base corre el servidor HTTP implementado totalmente en C con libmicrohttpd, compuesto por cuatro hilos concurrentes: el router de peticiones, el contador de uptime, el watchdog que retorna al modo autónomo cuando no hay sesiones activas, y el hilo de navegación autónoma que lee sensores y controla motores en tiempo real. El servidor se apoya en cuatro módulos en C: api.c para los endpoints REST, auth.c para autenticación con tokens y SHA256, robot_state.c para el estado global compartido entre hilos mediante mutex, y robot_hardware.c para la inicialización del hardware vía gpios. Todos estos módulos acceden al hardware exclusivamente a través de librobot.so, la biblioteca dinámica propia compilada de forma cruzada. Finalmente, el dashboard web en HTML, CSS y JavaScript puro consume la API mediante HTTP polling y presenta al usuario el control de movimiento, estado de LEDs, sensores y mapa en tiempo real.
 
 A continuacion, se muestra el diagrama de arquitectura de software del sistema.
 
