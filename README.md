@@ -110,6 +110,8 @@ A continuacion, se muestra el diagrama de arquitectura de software del sistema.
 
 ---
 
+# Dependencias y configuración de Yocto
+
 ## Layer necesarios para la imagen
 
 Se debe tener bblayers asociados a la imagen, especialmente meta-raspberrypi y meta-openembedded para que todo el Wifi y el jack funcionen correctamente. Primeramente asegurarse de contar con los repositorios necesarios.
