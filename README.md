@@ -584,6 +584,68 @@ http://<IP-de-la-RPi>:8080
 ```
 ---
 
+## Verificación de Compilación Cruzada en el Target
+
+### Evidencia 1 — Servidor activo y biblioteca dinámica instalada
+
+![Verificación servidor y librobot](docs/comprobacion1.jpeg)
+
+Los resultados obtenidos confirman lo siguiente:
+
+- **`systemctl status robot-server` → `active (running)`**: El binario compilado
+  cruzadamente para AArch64 ejecuta correctamente en la RPi4, con PID 279,
+  7 tareas activas y 2min 54s de CPU consumido, lo que demuestra estabilidad
+  del proceso.
+
+- **`ls /usr/lib/librobot.so*` → `librobot.so.1` y `librobot.so.1.0.0`**:
+  La biblioteca dinámica propia desarrollada para el proyecto está correctamente
+  instalada en el sistema con versionado semántico estándar.
+
+- **`strings /usr/bin/robot-server | grep -i "aarch\|arm\|cortex"` →
+  `ld-linux-aarch64.so.1`**: Esta es la evidencia más directa de compilación
+  cruzada. El linker dinámico referenciado internamente en el binario es
+  `ld-linux-aarch64`, exclusivo de la arquitectura ARM64. Un binario x86
+  jamás contendría esta referencia, lo que confirma que fue compilado
+  cruzadamente desde una máquina x86_64.
+
+- **`cat /proc/version` → `aarch64-poky-linux-gcc (GCC) 13.4.0`**: Confirma
+  que el kernel corre en arquitectura `aarch64` y fue construido con el
+  toolchain cruzado de Yocto Poky.
+
+---
+
+### Evidencia 2 — librobot cargada en memoria y arquitectura del sistema
+
+![Verificación maps y arquitectura](docs/comprobacion2.jpeg)
+
+- **`cat /proc/279/maps | grep librobot`**: Muestra que `librobot.so.1.0.0`
+  está efectivamente cargada en el espacio de memoria del proceso
+  `robot-server` en tiempo de ejecución, con cuatro regiones mapeadas:
+  - `r-xp` → segmento de código ejecutable
+  - `---p` → separador de protección
+  - `r--p` → segmento de datos de solo lectura
+  - `rw-p` → segmento de datos de lectura/escritura
+
+  Esto confirma que el servidor utiliza la biblioteca dinámica propia en
+  runtime tal como lo exige la especificación del proyecto.
+
+- **`df -h`**: El sistema de archivos rootfs ocupa **119.3 MB de 230.7 MB**
+  (56%), confirmando que la imagen Yocto generada es mínima y contiene
+  únicamente los paquetes necesarios para el funcionamiento del robot.
+
+---
+
+### Resumen de evidencias
+
+| Comando | Resultado | Qué confirma |
+|---|---|---|
+| `systemctl status robot-server` | `active (running)` | Binario ARM64 ejecuta correctamente |
+| `ls /usr/lib/librobot.so*` | `librobot.so.1.0.0` | Biblioteca dinámica instalada |
+| `strings ... \| grep aarch` | `ld-linux-aarch64.so.1` | Compilación cruzada AArch64 |
+| `cat /proc/version` | `aarch64-poky-linux-gcc 13.4.0` | Toolchain Yocto confirmado |
+| `cat /proc/279/maps` | 4 regiones de `librobot.so.1.0.0` | librobot cargada en runtime |
+| `df -h` | 119.3 MB usados | Imagen Yocto mínima |
+
 # Referencia API — librobot.so
 
 ---
