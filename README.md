@@ -39,9 +39,17 @@ El sistema integra múltiples subsistemas de hardware y software para crear una 
 - Resistencias y Capacitores
 - 1 × Potenciómetro de 10 kΩ
 
-A continuacion, se muestre el digrama del circuito de audio completo.
+---
 
-![Audio_circuit](docs/LM386_amp.jpeg)
+El sistema de audio recibe la señal analógica desde el jack de 3.5 mm de la Raspberry Pi 4, la cual es generada por el subsistema de audio del kernel ALSA.
+Esta señal es amplificada mediante el circuito basado en el LM386, un amplificador de audio de baja potencia diseñado para aplicaciones embebidas. El potenciómetro de 10 kΩ actúa como control de ganancia de entrada, permitiendo regular el nivel de la señal antes de la amplificación. Los capacitores de desacoplo eliminan el ruido de alta frecuencia y el offset DC, garantizando una señal limpia hacia el altavoz.
+
+A continuación se muestra tanto el diagrama del circuito del audio como su resultado en la placa perforada.
+
+| Diagrama Original | Circuito en placa perforada |
+|:-:|:-:|
+| ![Audio_circuit1](docs/LM386_amp.jpeg)| ![Audio_circuit2](docs/audio_perf.jpeg) |
+
 
 ### Sistema de motores
 - 2 × Motores DC
@@ -50,9 +58,18 @@ A continuacion, se muestre el digrama del circuito de audio completo.
 - 6 × Optoacopladores (para aislar la Raspberry del driver y otras cargas)
 - Resistencias asociadas (1-2) kΩ
 
-A continuacion, se muestre el digrama del circuito de los motores con puente H completo.
+---
 
-![Audio_circuit](docs/Circuit_diagram.jpeg)
+El sistema de motores permite el desplazamiento del robot en todas las direcciones: avance, retroceso, giro izquierda y giro derecha. El driver L298N implementa un puente H doble que controla de forma independiente dos motores DC, uno por cada lado del chasis, donde la velocidad de cada motor se regula mediante señales PWM generadas por la Raspberry Pi 4. La dirección de giro se determina combinando los pines de control IN1/IN2 para el motor izquierdo e IN3/IN4 para el motor derecho.
+
+Los seis optoacopladores cumplen una función de protección crítica, ya que aíslan eléctricamente la Raspberry Pi 4 del driver de motores y de la fuente de alimentación de mayor voltaje. Esto evita que picos de corriente, ruido eléctrico o cortocircuitos en el lado de potencia dañen la lógica de la Raspberry Pi, que opera a 3.3V. Cada señal de control (ENA, IN1, IN2, ENB, IN3, IN4) pasa por un optoacoplador antes de llegar al L298N, garantizando aislamiento galvánico completo entre ambos dominios de voltaje. El control de los motores es gestionado completamente desde software a través de la biblioteca dinámica.
+
+A continuación se muestra el diagrama del circuito de los motores con puente H completo, así como su equivalente en la placa perforada.
+
+
+| Diagrama Original | Circuito en placa perforada |
+|:-:|:-:|
+| ![Audio_circuit](docs/Circuit_diagram.jpeg)| ![Circuit_perf](docs/opto_perf.jpeg) |
 
 A continuacion, se muestra el diagrama de arquitectura de hardware
 
@@ -75,19 +92,25 @@ A continuacion, se muestra el diagrama de arquitectura de hardware
 - Sistema Operativo
   Imagen mínima de Linux generada con Yocto  
   Optimizada para recursos limitados  
--Software Embebido
+- Software Embebido
   Biblioteca dinámica en C (.so) para manejo de hardware (GPIO, PWM, audio)  
   Servidor web para control remoto  
   Procesos concurrentes (navegación + audio)  
--Comunicación
+- Comunicación
   Interfaz web accesible vía red (WiFi)  
 - `bmaptool` (para grabar la imagen en la microSD)
+
+---
+
+El sistema se organiza en cuatro capas verticales. En la capa superior, la imagen Yocto generada por el layer meta-robot contiene todas las recetas BitBake necesarias para construir el sistema operativo mínimo, incluyendo configuración de WiFi, ALSA, pigpio y los layers de dependencias. Sobre esta base corre el servidor HTTP implementado totalmente en C con libmicrohttpd, compuesto por cuatro hilos concurrentes: el router de peticiones, el contador de uptime, el watchdog que retorna al modo autónomo cuando no hay sesiones activas, y el hilo de navegación autónoma que lee sensores y controla motores en tiempo real. El servidor se apoya en cuatro módulos en C: api.c para los endpoints REST, auth.c para autenticación con tokens y SHA256, robot_state.c para el estado global compartido entre hilos mediante mutex, y robot_hardware.c para la inicialización del hardware vía gpios. Todos estos módulos acceden al hardware exclusivamente a través de librobot.so, la biblioteca dinámica propia compilada de forma cruzada. Finalmente, el dashboard web en HTML, CSS y JavaScript puro consume la API mediante HTTP polling y presenta al usuario el control de movimiento, estado de LEDs, sensores y mapa en tiempo real.
 
 A continuacion, se muestra el diagrama de arquitectura de software del sistema.
 
 ![SW_circuit](docs/Diagrama_software.jpeg) 
 
 ---
+
+# Dependencias y configuración de Yocto
 
 ## Layer necesarios para la imagen
 
@@ -583,6 +606,68 @@ systemctl status wpa_supplicant@wlan0
 http://<IP-de-la-RPi>:8080
 ```
 ---
+
+## Verificación de Compilación Cruzada en el Target
+
+### Evidencia 1 — Servidor activo y biblioteca dinámica instalada
+
+![Verificación servidor y librobot](docs/comprobacion1.jpeg)
+
+Los resultados obtenidos confirman lo siguiente:
+
+- **`systemctl status robot-server` → `active (running)`**: El binario compilado
+  cruzadamente para AArch64 ejecuta correctamente en la RPi4, con PID 279,
+  7 tareas activas y 2min 54s de CPU consumido, lo que demuestra estabilidad
+  del proceso.
+
+- **`ls /usr/lib/librobot.so*` → `librobot.so.1` y `librobot.so.1.0.0`**:
+  La biblioteca dinámica propia desarrollada para el proyecto está correctamente
+  instalada en el sistema con versionado semántico estándar.
+
+- **`strings /usr/bin/robot-server | grep -i "aarch\|arm\|cortex"` →
+  `ld-linux-aarch64.so.1`**: Esta es la evidencia más directa de compilación
+  cruzada. El linker dinámico referenciado internamente en el binario es
+  `ld-linux-aarch64`, exclusivo de la arquitectura ARM64. Un binario x86
+  jamás contendría esta referencia, lo que confirma que fue compilado
+  cruzadamente desde una máquina x86_64.
+
+- **`cat /proc/version` → `aarch64-poky-linux-gcc (GCC) 13.4.0`**: Confirma
+  que el kernel corre en arquitectura `aarch64` y fue construido con el
+  toolchain cruzado de Yocto Poky.
+
+---
+
+### Evidencia 2 — librobot cargada en memoria y arquitectura del sistema
+
+![Verificación maps y arquitectura](docs/comprobacion2.jpeg)
+
+- **`cat /proc/279/maps | grep librobot`**: Muestra que `librobot.so.1.0.0`
+  está efectivamente cargada en el espacio de memoria del proceso
+  `robot-server` en tiempo de ejecución, con cuatro regiones mapeadas:
+  - `r-xp` → segmento de código ejecutable
+  - `---p` → separador de protección
+  - `r--p` → segmento de datos de solo lectura
+  - `rw-p` → segmento de datos de lectura/escritura
+
+  Esto confirma que el servidor utiliza la biblioteca dinámica propia en
+  runtime tal como lo exige la especificación del proyecto.
+
+- **`df -h`**: El sistema de archivos rootfs ocupa **119.3 MB de 230.7 MB**
+  (56%), confirmando que la imagen Yocto generada es mínima y contiene
+  únicamente los paquetes necesarios para el funcionamiento del robot.
+
+---
+
+### Resumen de evidencias
+
+| Comando | Resultado | Qué confirma |
+|---|---|---|
+| `systemctl status robot-server` | `active (running)` | Binario ARM64 ejecuta correctamente |
+| `ls /usr/lib/librobot.so*` | `librobot.so.1.0.0` | Biblioteca dinámica instalada |
+| `strings ... \| grep aarch` | `ld-linux-aarch64.so.1` | Compilación cruzada AArch64 |
+| `cat /proc/version` | `aarch64-poky-linux-gcc 13.4.0` | Toolchain Yocto confirmado |
+| `cat /proc/279/maps` | 4 regiones de `librobot.so.1.0.0` | librobot cargada en runtime |
+| `df -h` | 119.3 MB usados | Imagen Yocto mínima |
 
 # Referencia API — librobot.so
 
